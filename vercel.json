@@ -1,15 +1,17 @@
 {
     "builds": [
-      {
-        "src": "main.py",
-        "use": "@vercel/python"
-      }
+      { "src": "main.py", "use": "@vercel/python" }
     ],
     "routes": [
+      {
+        "src": "/favicon\\.(ico|png)",
+        "status": 404
+      },
       {
         "src": "/(.*)",
         "dest": "main.py"
       }
     ]
   }
+  
   
