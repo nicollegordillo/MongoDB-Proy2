@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile
-from database import db
+from index import db
 import gridfs
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 
