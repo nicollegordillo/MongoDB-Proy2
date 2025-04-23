@@ -4,8 +4,6 @@ from routes.resenias import router as resenias_router
 from routes.imagenes import router as imagenes_router
 from mangum import Mangum
 from dotenv import load_dotenv
-from fastapi.responses import FileResponse
-import os
 
 load_dotenv()
 
@@ -19,9 +17,7 @@ app.include_router(imagenes_router, prefix="/imagenes", tags=["Imagenes"])
 async def hello():
     return {"mensaje": "Hola desde FastAPI + MongoDB + Vercel"}
 
+# Este es el handler que Vercel necesita
 handler = Mangum(app)
 
-@app.get("/favicon.ico")
-async def favicon():
-    return FileResponse(os.path.join("static", "favicon.ico"))
 
