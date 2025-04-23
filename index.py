@@ -9,10 +9,11 @@ db = None  # para compartirlo entre rutas
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global db
+    from database import create_db
     db = await create_db()
+    app.state.db = db  # Lo asignas aquí, no como variable global
     yield
-    # Aquí podrías cerrar la conexión si quieres
+    # Puedes cerrar conexión si lo necesitas, ej. `await db.client.close()`
 
 app = FastAPI(lifespan=lifespan)
 
