@@ -9,9 +9,9 @@ from bson import ObjectId
 mongo_uri = os.environ.get("MONGODB_URI")
 if mongo_uri:
     print("Mongo URI cargada exitosamente")
-    client = MongoClient(mongo_uri)
+    client = AsyncIOMotorClient(mongo_uri)
     db = client["restaurante_db"]
-
+    
     # Inicializar FastAPI
     app = FastAPI()
 
@@ -35,12 +35,17 @@ async def crear_orden(orden: dict):
     res = await db.ordenes.insert_one(orden)
     return {"id": str(res.inserted_id)}
 
+
 @app.get("/ordenes/")
 async def listar_ordenes(skip: int = 0, limit: int = 10):
-    ordenes = await db.ordenes.find().skip(skip).limit(limit).to_list(100)
-    for o in ordenes:
-        o["_id"] = str(o["_id"])
-    return ordenes
+    try:
+        ordenes = await db.ordenes.find().skip(skip).limit(limit).to_list(100)
+        for o in ordenes:
+            o["_id"] = str(o["_id"])
+        return ordenes
+    except Exception as e:
+        print(f"Error al listar órdenes: {e}")  # Para los logs
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 @app.get("/ordenes/{id}")
 async def obtener_orden(id: str):
