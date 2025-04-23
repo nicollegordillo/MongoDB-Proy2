@@ -1,16 +1,15 @@
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from contextlib import asynccontextmanager
+from fastapi import FastAPI
 
 @asynccontextmanager
-async def create_db():
+async def lifespan(app: FastAPI):
     MONGO_URI = os.environ.get("MONGODB_URI")
     client = AsyncIOMotorClient(MONGO_URI)
     db = client["restaurante_db"]
-    try:
-        yield db  # Aseguramos que db esté disponible durante el ciclo de vida de la app
-    finally:
-        client.close()  # Cerramos la conexión cuando la app termine
-
+    app.state.db = db  #  aquí se agrega correctamente al estado
+    yield
+    client.close()  # Cierre opcional
 
 
