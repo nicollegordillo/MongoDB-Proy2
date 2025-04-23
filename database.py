@@ -1,16 +1,20 @@
+# database.py
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("Entrando a lifespan...")  # Para verificar si se ejecuta
+client = None
+
+def get_db():
+    return client["restaurante_db"]
+
+async def startup_db():
+    global client
     MONGO_URI = os.environ.get("MONGODB_URI")
     client = AsyncIOMotorClient(MONGO_URI)
-    db = client["restaurante_db"]
-    app.state.db = db  #  aquí se agrega correctamente al estado
-    yield
-    client.close()  # Cierre opcional
+    print("Conectado a MongoDB")
 
+async def shutdown_db():
+    global client
+    client.close()
+    print("Desconectado de MongoDB")
 
