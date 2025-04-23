@@ -9,21 +9,22 @@ from bson import ObjectId
 mongo_uri = os.environ.get("MONGODB_URI")
 if mongo_uri:
     print("Mongo URI cargada exitosamente")
+    client = MongoClient(mongo_uri)
+    db = client["restaurante_db"]
+
+    # Inicializar FastAPI
+    app = FastAPI()
+
+    # ------------------------------
+    # RUTA PRINCIPAL
+    # ------------------------------
+
+    @app.get("/")
+    async def hello():
+        return {"mensaje": "Hola desde FastAPI + MongoDB + Vercel"}
 else:
     print("Error: MONGODB_URI no configurada.")
-client = MongoClient(mongo_uri)
-db = client["restaurante_db"]
 
-# Inicializar FastAPI
-app = FastAPI()
-
-# ------------------------------
-# RUTA PRINCIPAL
-# ------------------------------
-
-@app.get("/")
-async def hello():
-    return {"mensaje": "Hola desde FastAPI + MongoDB + Vercel"}
 
 # ------------------------------
 # CRUD ÓRDENES
