@@ -11,10 +11,15 @@ async def crear_orden(orden: dict):
 
 @router.get("/")
 async def listar_ordenes(skip: int = 0, limit: int = 10):
-    ordenes = await db.ordenes.find().skip(skip).limit(limit).to_list(100)
-    for o in ordenes:
-        o["_id"] = str(o["_id"])
-    return ordenes
+    try:
+        ordenes = await db.ordenes.find().skip(skip).limit(limit).to_list(100)
+        for o in ordenes:
+            o["_id"] = str(o["_id"])
+        return ordenes
+    except Exception as e:
+        print("Error en listar_ordenes:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{id}")
 async def obtener_orden(id: str):
