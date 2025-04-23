@@ -2,11 +2,12 @@ import os
 from fastapi import FastAPI, HTTPException, UploadFile
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from fastapi.responses import StreamingResponse
+from pymongo import MongoClient
 from bson import ObjectId
 
 # Conexión a MongoDB
 mongo_uri = os.environ.get("MONGODB_URI")
-client = AsyncIOMotorClient(mongo_uri)
+client = MongoClient(mongo_uri)
 db = client["restaurante_db"]
 
 # Inicializar FastAPI
