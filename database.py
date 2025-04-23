@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("Entrando a lifespan...")  # Para verificar si se ejecuta
     MONGO_URI = os.environ.get("MONGODB_URI")
     client = AsyncIOMotorClient(MONGO_URI)
     db = client["restaurante_db"]
