@@ -7,6 +7,10 @@ from bson import ObjectId
 
 # Conexión a MongoDB
 mongo_uri = os.environ.get("MONGODB_URI")
+if mongo_uri:
+    print("Mongo URI cargada exitosamente")
+else:
+    print("Error: MONGODB_URI no configurada.")
 client = MongoClient(mongo_uri)
 db = client["restaurante_db"]
 
