@@ -18,3 +18,13 @@ async def hello():
     return {"mensaje": "Hola desde FastAPI + MongoDB + Vercel"}
 
 handler = Mangum(app)
+
+from fastapi.responses import Response
+
+@app.get("/favicon.ico")
+async def favicon_ico():
+    return Response(status_code=204)
+
+@app.get("/favicon.png")
+async def favicon_png():
+    return Response(status_code=204)
