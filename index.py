@@ -5,18 +5,18 @@ from routes.resenias import router as resenias_router
 from routes.imagenes import router as imagenes_router
 from database import create_db
 
+# Definimos la función lifespan primero
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db = await create_db()  # Inicializamos la base de datos
+    app.state.db = db  # Asignamos db al estado de la app
+    yield  # El ciclo de vida continúa durante la app
+    db.client.close()  # Cerramos la conexión cuando la app se apague
 
+# Ahora instanciamos la app y le pasamos lifespan
+app = FastAPI(lifespan=lifespan)
 
-async def create_lifespan():
-    db = await create_db()  # Inicializar la base de datos
-    try:
-        yield db  # El db estará disponible durante el ciclo de vida de la app
-    finally:
-        db.client.close()  # Cerrar la conexión al finalizar la app
-
-app = FastAPI(lifespan=create_lifespan())
-
-# Montar routers
+# Montamos los routers
 app.include_router(ordenes_router, prefix="/ordenes", tags=["Ordenes"])
 app.include_router(resenias_router, prefix="/resenias", tags=["Resenias"])
 app.include_router(imagenes_router, prefix="/imagenes", tags=["Imagenes"])
