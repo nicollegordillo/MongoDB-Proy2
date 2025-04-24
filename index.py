@@ -3,6 +3,31 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Crear índices al iniciar
+    try:
+        print(" Creando índices...")
+
+        # Índices para órdenes
+        await db.ordenes.create_index([("fecha", -1)])
+        await db.ordenes.create_index([("usuario_id", 1), ("fecha", -1)])
+        await db.ordenes.create_index([("estado", 1)])
+        await db.ordenes.create_index([("items.articulo_id", 1)])  # multikey
+
+        # Índices para reseñas
+        await db.resenias.create_index([("fecha", -1)])
+        await db.resenias.create_index([("restaurante_id", 1), ("calificacion", -1)])
+        await db.resenias.create_index([("usuario_id", 1)])
+
+        print(" Índices creados correctamente.")
+    except Exception as e:
+        print(f" Error creando índices: {e}")
+
+    yield  # Aquí continúa la ejecución normal de la app
+
 
 # Conexión a MongoDB
 mongo_uri = os.environ.get("MONGODB_URI")
@@ -12,7 +37,7 @@ if mongo_uri:
     db = client["restaurante_db"]
     
     # Inicializar FastAPI
-    app = FastAPI()
+    app = FastAPI(lifespan=lifespan)
 
     @app.get("/")
     async def hello():
