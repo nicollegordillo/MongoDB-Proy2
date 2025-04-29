@@ -7,9 +7,17 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Crear índices al iniciar
     try:
-        print(" Creando índices...")
+        print("Conectando a MongoDB...")
+        mongo_uri = os.environ.get("MONGODB_URI")
+        if not mongo_uri:
+            raise Exception("MONGODB_URI no configurada")
+
+        client = AsyncIOMotorClient(mongo_uri)
+        db = client["restaurante_db"]
+        app.state.db = db  # Guardar la instancia en el estado de la app
+
+        print("Creando índices...")
 
         # Índices para órdenes
         await db.ordenes.create_index([("fecha", -1)])
@@ -27,29 +35,19 @@ async def lifespan(app: FastAPI):
         await db.restaurantes.create_index([("nombre",-1)])
         await db.restaurantes.create_index([("categorias",1)])
         await db.restaurantes.create_index([("calificacionPromedio",-1)])
-        
-        print(" Índices creados correctamente.")
+
+        print("Índices creados correctamente.")
+        yield
+        client.close()
     except Exception as e:
-        print(f" Error creando índices: {e}")
+        print(f"Error durante lifespan: {e}")
+        raise e
 
-    yield  # Aquí continúa la ejecución normal de la app
+app = FastAPI(lifespan=lifespan)
 
-
-# Conexión a MongoDB
-mongo_uri = os.environ.get("MONGODB_URI")
-if mongo_uri:
-    print("Mongo URI cargada exitosamente")
-    client = AsyncIOMotorClient(mongo_uri)
-    db = client["restaurante_db"]
-    
-    # Inicializar FastAPI
-    app = FastAPI(lifespan=lifespan)
-
-    @app.get("/")
-    async def hello():
-        return {"mensaje": "Hola desde FastAPI + MongoDB + Vercel"}
-else:
-    print("Error: MONGODB_URI no configurada.")
+@app.get("/")
+async def hello():
+    return {"mensaje": "Hola desde FastAPI + MongoDB + Vercel"}
 
 # ------------------------------
 # CRUD ÓRDENES
