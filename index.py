@@ -56,7 +56,7 @@ async def hello():
 @app.post("/ordenes/")
 async def crear_orden(orden: dict):
     try:
-        res = await db.ordenes.insert_one(orden)
+        res = await app.state.db.ordenes.insert_one(orden)
         return {"id": str(res.inserted_id)}
     except Exception as e:
         print(f"Error al crear orden: {e}")
@@ -65,7 +65,7 @@ async def crear_orden(orden: dict):
 @app.get("/ordenes/")
 async def listar_ordenes(skip: int = 0, limit: int = 10):
     try:
-        ordenes = await db.ordenes.find().skip(skip).limit(limit).to_list(100)
+        ordenes = await app.state.db.ordenes.find().skip(skip).limit(limit).to_list(100)
         for o in ordenes:
             o["_id"] = str(o["_id"])
         return ordenes
@@ -76,7 +76,7 @@ async def listar_ordenes(skip: int = 0, limit: int = 10):
 @app.get("/ordenes/{id}")
 async def obtener_orden(id: str):
     try:
-        orden = await db.ordenes.find_one({"_id": ObjectId(id)})
+        orden = await app.state.db.ordenes.find_one({"_id": ObjectId(id)})
         if not orden:
             raise HTTPException(status_code=404, detail="Orden no encontrada")
         orden["_id"] = str(orden["_id"])
@@ -88,7 +88,7 @@ async def obtener_orden(id: str):
 @app.put("/ordenes/{id}")
 async def actualizar_estado(id: str, estado: str):
     try:
-        res = await db.ordenes.update_one({"_id": ObjectId(id)}, {"$set": {"estado": estado}})
+        res = await app.state.db.ordenes.update_one({"_id": ObjectId(id)}, {"$set": {"estado": estado}})
         return {"modificados": res.modified_count}
     except Exception as e:
         print(f"Error al actualizar orden: {e}")
@@ -97,7 +97,7 @@ async def actualizar_estado(id: str, estado: str):
 @app.delete("/ordenes/{id}")
 async def eliminar_orden(id: str):
     try:
-        res = await db.ordenes.delete_one({"_id": ObjectId(id)})
+        res = await app.state.db.ordenes.delete_one({"_id": ObjectId(id)})
         return {"eliminados": res.deleted_count}
     except Exception as e:
         print(f"Error al eliminar orden: {e}")
@@ -110,7 +110,7 @@ async def eliminar_orden(id: str):
 @app.post("/resenias/")
 async def crear_resenia(resenia: dict):
     try:
-        res = await db.resenias.insert_one(resenia)
+        res = await app.state.db.resenias.insert_one(resenia)
         return {"id": str(res.inserted_id)}
     except Exception as e:
         print(f"Error al crear reseña: {e}")
@@ -119,7 +119,7 @@ async def crear_resenia(resenia: dict):
 @app.get("/resenias/")
 async def listar_resenias():
     try:
-        resenias = await db.resenias.find().to_list(100)
+        resenias = await app.state.db.resenias.find().to_list(100)
         for r in resenias:
             r["_id"] = str(r["_id"])
         return resenias
@@ -130,7 +130,7 @@ async def listar_resenias():
 @app.get("/resenias/{id}")
 async def obtener_resenia(id: str):
     try:
-        r = await db.resenias.find_one({"_id": ObjectId(id)})
+        r = await app.state.db.resenias.find_one({"_id": ObjectId(id)})
         if not r:
             raise HTTPException(status_code=404, detail="Reseña no encontrada")
         r["_id"] = str(r["_id"])
@@ -142,7 +142,7 @@ async def obtener_resenia(id: str):
 @app.put("/resenias/{id}")
 async def actualizar_resenia(id: str, data: dict):
     try:
-        res = await db.resenias.update_one({"_id": ObjectId(id)}, {"$set": data})
+        res = await app.state.db.resenias.update_one({"_id": ObjectId(id)}, {"$set": data})
         return {"modificados": res.modified_count}
     except Exception as e:
         print(f"Error al actualizar reseña: {e}")
@@ -151,7 +151,7 @@ async def actualizar_resenia(id: str, data: dict):
 @app.delete("/resenias/{id}")
 async def eliminar_resenia(id: str):
     try:
-        res = await db.resenias.delete_one({"_id": ObjectId(id)})
+        res = await app.state.db.resenias.delete_one({"_id": ObjectId(id)})
         return {"eliminados": res.deleted_count}
     except Exception as e:
         print(f"Error al eliminar reseña: {e}")
@@ -164,7 +164,7 @@ async def eliminar_resenia(id: str):
 @app.post("/imagenes/")
 async def subir_imagen(file: UploadFile):
     try:
-        fs = AsyncIOMotorGridFSBucket(db)
+        fs = AsyncIOMotorGridFSBucket(app.state.db)
         contenido = await file.read()
         file_id = await fs.upload_from_stream(file.filename, contenido)
         return {"id": str(file_id)}
@@ -175,7 +175,7 @@ async def subir_imagen(file: UploadFile):
 @app.get("/imagenes/{id}")
 async def obtener_imagen(id: str):
     try:
-        fs = AsyncIOMotorGridFSBucket(db)
+        fs = AsyncIOMotorGridFSBucket(app.state.db)
         stream = await fs.open_download_stream(ObjectId(id))
         return StreamingResponse(stream, media_type="image/jpeg")
     except Exception as e:
