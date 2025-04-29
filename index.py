@@ -22,6 +22,12 @@ async def lifespan(app: FastAPI):
         await db.resenias.create_index([("restaurante_id", 1), ("calificacion", -1)])
         await db.resenias.create_index([("usuario_id", 1)])
 
+        # Indices para restaurantes
+        await db.restaurantes.create_index([("direccion.coordenadas","2dsphere")])
+        await db.restaurantes.create_index([("nombre",-1)])
+        await db.restaurantes.create_index([("categorias",1)])
+        await db.restaurantes.create_index([("calificacionPromedio",-1)])
+
         print(" Índices creados correctamente.")
     except Exception as e:
         print(f" Error creando índices: {e}")
@@ -176,6 +182,121 @@ async def obtener_imagen(id: str):
         return StreamingResponse(stream, media_type="image/jpeg")
     except Exception as e:
         print(f"Error al obtener imagen: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+# ------------------------------
+ # CRUD RESTAURANTES
+ # ------------------------------
+ 
+@app.post("/restaurantes/")
+async def crear_restaurante(rest: dict):
+    try:
+        res = await db.restaurantes.insert_one(rest)
+        return {"id": str(res.inserted_id)}
+    except Exception as e:
+        print(f"Error al crear reseña: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+app.get("/restaurantes/{id}")
+async def obtener_restaurante(id: str):
+    try:
+        r = await db.restaurantes.find_one({"_id": ObjectId(id)})
+        if not r:
+            raise HTTPException(status_code=404, detail="Restaurante no encontrada")
+        r["_id"] = str(r["_id"])
+        return r
+    except Exception as e:
+        print(f"Error al obtener restaurante: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+app.get("/restaurantes")
+async def obtener_restaurante():
+    try:
+        r = await db.restaurantes.find().to_list(100)
+        if not r:
+            raise HTTPException(status_code=404, detail="Restaurante no encontrada")
+        r["_id"] = str(r["_id"])
+        return r
+    except Exception as e:
+        print(f"Error al obtener restaurantes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+app.delete("/restaurantes/{id}")
+async def eliminar_restaurante():
+    try:
+        r = await db.restaurantes.delete_one({"_id": ObjectId(id)})
+        return {"eliminados": r.deleted_count}
+    except Exception as e:
+        print(f"Error al eliminar restaurante: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+app.put("/restaurantes/{id}")
+async def actualizar_restaurante(id: str, data: dict):
+    try:
+        res = await db.actualizar_restaurante.update_one({"_id": ObjectId(id)}, {"$set": data})
+        return {"modificados": res.modified_count}
+    except Exception as e:
+        print(f"Error al actualizar restaurante: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# ------------------------------
+# AGREGATION
+# ------------------------------
+
+# Top restaurantes (mejor calificacion)
+app.post("/agg/top-res/{limit}")
+async def top_restaurantes(limit: int):
+    try:
+        res = await db.resenias.aggregate([
+            {"$sort": {"calificacionPromedio": -1}},
+            {"$limit": limit}
+        ])
+        return res
+    except Exception as e:
+        print(f"Error alobteniendo top restaurante: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# Top articulos (mas vendidos)
+app.post("/agg/top-dish/{limit}")
+async def top_platos(limit: int):
+    try:
+        res = await db.ordenes.aggregate([
+            {"$unwind": "$items"},
+            {"$group": {
+                "_id": {
+                    "articulo_id": "$items.articulo_id",
+                    "articulo_nombre": "$items.articulo_id",
+                },
+                "total_sales": {"$sum": "$items.cantidad"}
+            }},
+            {"$sort": {"total_sales": -1}},
+            {"$limit": limit},
+            {"$project": {
+                "_id": 0,
+                "articulo_id": "$_id.articulo_id",
+                "nombre": "$_id.articulo_nombre",
+                "total_sales": 1
+            }}
+        ])
+        return res
+    except Exception as e:
+        print(f"Error alobteniendo top restaurante: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Gastos de clientes (gasto total por cada cliente)
+app.post("/agg/user-spent/")
+async def top_platos():
+    try:
+        res = await db.ordenes.aggregate([
+            {"$group": {
+                "_id": "$usuario_id",
+                "spent": {"$sum": "$total"}
+            }}
+        ])
+        return res
+    except Exception as e:
+        print(f"Error alobteniendo top restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
