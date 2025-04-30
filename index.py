@@ -62,10 +62,10 @@ def get_db():
 # ------------------------------
 
 @app.post("/ordenes/")
-async def crear_orden(orden: Orden):
+async def crear_orden(orden: dict):
     try:
         db = get_db()
-        res = await db.ordenes.insert_one(orden.model_dump(by_alias=True))
+        res = await db.ordenes.insert_one(orden)
         return {"id": str(res.inserted_id)}
     except Exception as e:
         print(f"Error al crear orden: {e}")
