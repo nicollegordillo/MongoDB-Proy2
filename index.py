@@ -227,7 +227,7 @@ async def obtener_imagen(id: str):
  # CRUD RESTAURANTES
  # ------------------------------
  
-app.get("/restaurantes/")
+@app.get("/restaurantes/")
 async def listar_restaurantes():
     try:
         db = get_db()
