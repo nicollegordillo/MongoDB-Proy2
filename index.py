@@ -4,7 +4,6 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from contextlib import asynccontextmanager
-from models.orden import Orden
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -75,9 +74,17 @@ async def crear_orden(orden: dict):
 async def listar_ordenes(skip: int = 0, limit: int = 10):
     try:
         db = get_db()
-        ordenes = await db.ordenes.find().skip(skip).limit(limit).to_list(100)
+        ordenes_cursor = db.ordenes.find().skip(skip).limit(limit)
+        ordenes = await ordenes_cursor.to_list(length=100)
         for o in ordenes:
             o["_id"] = str(o["_id"])
+            o["usuario_id"] = str(o["usuario_id"])
+            o["restaurante_id"] = str(o["restaurante_id"])
+            if o.get("resenia_id"):
+                    o["resenia_id"] = str(o["resenia_id"])
+            for item in o.get("items", []):
+                if item.get("articulo_id"):
+                    item["articulo_id"] = str(item["articulo_id"])
         return ordenes
     except Exception as e:
         print(f"Error al listar órdenes: {e}")
@@ -91,6 +98,13 @@ async def obtener_orden(id: str):
         if not orden:
             raise HTTPException(status_code=404, detail="Orden no encontrada")
         orden["_id"] = str(orden["_id"])
+        orden["usuario_id"] = str(orden["usuario_id"])
+        orden["restaurante_id"] = str(orden["restaurante_id"])
+        if orden.get("resenia_id"):
+                    orden["resenia_id"] = str(orden["resenia_id"])
+        for item in orden.get("items", []):
+            if item.get("articulo_id"):
+                item["articulo_id"] = str(item["articulo_id"])
         return orden
     except Exception as e:
         print(f"Error al obtener orden: {e}")
