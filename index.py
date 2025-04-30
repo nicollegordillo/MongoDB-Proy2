@@ -4,6 +4,7 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from contextlib import asynccontextmanager
+from models.orden import Orden
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -61,10 +62,10 @@ def get_db():
 # ------------------------------
 
 @app.post("/ordenes/")
-async def crear_orden(orden: dict):
+async def crear_orden(orden: Orden):
     try:
         db = get_db()
-        res = await db.ordenes.insert_one(orden)
+        res = await db.ordenes.insert_one(orden.model_dump(by_alias=True))
         return {"id": str(res.inserted_id)}
     except Exception as e:
         print(f"Error al crear orden: {e}")
