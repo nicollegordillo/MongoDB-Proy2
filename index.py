@@ -210,14 +210,15 @@ app.get("/restaurantes/")
 async def listar_restaurantes():
     try:
         db = get_db()
-        r = await db.restaurantes.find().to_list(100)
-        if not r:
-            raise HTTPException(status_code=404, detail="Restaurante no encontrada")
-        r["_id"] = str(r["_id"])
-        return r
+        restaurantes = await db.restaurantes.find().to_list(100)
+        for r in restaurantes:
+            r["_id"] = str(r["_id"])
+        return restaurantes
     except Exception as e:
         print(f"Error al obtener restaurantes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/restaurantes/{id}")
 async def obtener_restaurante(id: str):
     try:
@@ -307,7 +308,9 @@ async def top_platos(limit: int):
                 },
                 "pipeline": [
                     {"$match": {
-                        "$eq": ["$articulo_id", "$$articulo_id"]
+                        "expr": {
+                            "$eq": ["$articulo_id", "$$articulo_id"]
+                        }
                     }}
                 ],
                 "as": "articulo"
@@ -326,7 +329,7 @@ async def top_platos(limit: int):
 
 # Gastos de clientes (gasto total por cada cliente)
 @app.post("/agg/user-spent/")
-async def top_platos():
+async def gastos_usuario():
     try:
         db = get_db()
         cursor = db.ordenes.aggregate([
@@ -343,5 +346,64 @@ async def top_platos():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-
+@app.post("/agg/resenias/{id}")
+async def resenias_por_restaurante(id: str):
+    try:
+        db = get_db()
+        cursor = db.resenias.aggregate([
+            {"$match": { 
+                "restaurante_id": ObjectId(id) 
+            }},
+            # Info de usuario
+            {"$lookup": {
+                "from": "usuarios",
+                "let": {
+                    "usuario_id": "$usuario_id"
+                },
+                "pipeline": [
+                    {"$match": {
+                        "expr": {
+                            "$eq": ["$_id", "$$usuario_id"]
+                        }
+                    }},
+                    {"$project": {
+                        "nombre": "$nombre",
+                        "correo": "$correo"
+                    }}
+                ],
+                "as": "user_info"
+            }},
+            # Info de orden
+            {"$lookup": {
+                "from": "ordenes",
+                "let": {
+                    "orden_id": "$orden_id"
+                },
+                "pipeline": [
+                    {"$match": {
+                        "expr": {
+                            "$eq": ["$_id", "$$orden_id"]
+                        }
+                    }},
+                    {"$project": {
+                        "estado": "$estado",
+                        "total": "$total",
+                        "items": "$items"
+                    }}
+                ],
+                "as": "order_info"
+            }},
+            # integracion
+            {"$project": {
+                "user_info": "$user_info",
+                "order_info": "$order_info",
+                "comentario": 1,
+                "calificacion": 1,
+                "fecha": 1
+            }}
+        ])
+        res = await cursor.to_list() 
+        return res
+    except Exception as e:
+        print(f"Error obteniendo top restaurantes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
