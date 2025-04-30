@@ -206,16 +206,18 @@ async def obtener_imagen(id: str):
  # CRUD RESTAURANTES
  # ------------------------------
  
-@app.post("/restaurantes/")
-async def crear_restaurante(rest: dict):
+app.get("/restaurantes/")
+async def listar_restaurantes():
     try:
         db = get_db()
-        res = await db.restaurantes.insert_one(rest)
-        return {"id": str(res.inserted_id)}
+        r = await db.restaurantes.find().to_list(100)
+        if not r:
+            raise HTTPException(status_code=404, detail="Restaurante no encontrada")
+        r["_id"] = str(r["_id"])
+        return r
     except Exception as e:
-        print(f"Error al crear reseña: {e}")
+        print(f"Error al obtener restaurantes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/restaurantes/{id}")
 async def obtener_restaurante(id: str):
     try:
@@ -229,17 +231,14 @@ async def obtener_restaurante(id: str):
         print(f"Error al obtener restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
-app.get("/restaurantes/")
-async def listar_restaurantes():
+@app.post("/restaurantes/")
+async def crear_restaurante(rest: dict):
     try:
         db = get_db()
-        r = await db.restaurantes.find().to_list(100)
-        if not r:
-            raise HTTPException(status_code=404, detail="Restaurante no encontrada")
-        r["_id"] = str(r["_id"])
-        return r
+        res = await db.restaurantes.insert_one(rest)
+        return {"id": str(res.inserted_id)}
     except Exception as e:
-        print(f"Error al obtener restaurantes: {e}")
+        print(f"Error al crear reseña: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/restaurantes/{id}")
@@ -271,7 +270,7 @@ async def actualizar_restaurante(id: str, data: dict):
 async def top_restaurantes(limit: int):
     try:
         db = get_db()
-        cursor = db.resenias.aggregate([
+        cursor = db.restaurantes.aggregate([
             {"$sort": {"calificacionPromedio": -1}},
             {"$limit": limit}
         ])
@@ -287,21 +286,36 @@ async def top_platos(limit: int):
     try:
         db = get_db()
         cursor = db.ordenes.aggregate([
+            # Encontrar items con mayores ventas
             {"$unwind": "$items"},
             {"$group": {
-                "_id": {
-                    "articulo_id": "$items.articulo_id",
-                    "articulo_nombre": "$items.articulo_id",
-                },
+                "_id": "$items.articulo_id",
                 "total_sales": {"$sum": "$items.cantidad"}
             }},
+            # Obtener top 
             {"$sort": {"total_sales": -1}},
             {"$limit": limit},
             {"$project": {
-                "_id": 0,
-                "articulo_id": "$_id.articulo_id",
-                "nombre": "$_id.articulo_nombre",
+                "articulo_id": "$_id",
                 "total_sales": 1
+            }},
+            # Obtener la info de los articulos
+            {"$lookup": {
+                "from": "articulos",
+                "let": {
+                    "articulo_id": "$articulo_id"
+                },
+                "pipeline": [
+                    {"$match": {
+                        "$eq": ["$articulo_id", "$$articulo_id"]
+                    }}
+                ],
+                "as": "articulo"
+            }},
+            # formato
+            {"$project": {
+                "total_sales": 1,
+                "articulo": 1
             }}
         ])
         res = await cursor.to_list(length=limit) 
