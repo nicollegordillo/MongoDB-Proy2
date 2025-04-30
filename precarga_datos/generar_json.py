@@ -8,7 +8,7 @@ fake = Faker()
 
 def generar_usuarios(n=1000):
     return [{
-        "_id": str(ObjectId()),
+        "_id": ObjectId(),
         "nombre": fake.name(),
         "correo": fake.email(),
         "telefono": fake.phone_number(),
@@ -22,7 +22,7 @@ def generar_usuarios(n=1000):
 
 def generar_restaurantes(n=100):
     return [{
-        "_id": str(ObjectId()),
+        "_id": ObjectId(),
         "nombre": fake.company(),
         "direccion": {
             "calle": fake.street_name(),
@@ -43,7 +43,7 @@ def generar_articulos(restaurantes, n_por_rest=10):
     for r in restaurantes:
         for _ in range(n_por_rest):
             articulos.append({
-                "_id": str(ObjectId()),
+                "_id": ObjectId(),
                 "restaurante_id": r["_id"],
                 "nombre": fake.word().capitalize(),
                 "descripcion": fake.text(max_nb_chars=50),
@@ -72,7 +72,7 @@ def generar_ordenes(usuarios, restaurantes, articulos, total=50000):
             })
             total_price += cant * art["precio"]
         ordenes.append({
-            "_id": str(ObjectId()),
+            "_id": ObjectId(),
             "usuario_id": user["_id"],
             "restaurante_id": rest["_id"],
             "fecha": (datetime.utcnow() - timedelta(days=random.randint(0, 90))).isoformat(),
@@ -87,7 +87,7 @@ def generar_resenias(ordenes, max_res=3000):
     resenias = []
     for o in random.sample(ordenes, min(max_res, len(ordenes))):
         resenias.append({
-            "_id": str(ObjectId()),
+            "_id": ObjectId(),
             "usuario_id": o["usuario_id"],
             "restaurante_id": o["restaurante_id"],
             "orden_id": o["_id"],
@@ -104,10 +104,28 @@ articulos = generar_articulos(restaurantes)
 ordenes = generar_ordenes(usuarios, restaurantes, articulos)
 resenias = generar_resenias(ordenes)
 
-with open("precarga_datos/usuarios.json", "w") as f: json.dump(usuarios, f)
-with open("precarga_datos/restaurantes.json", "w") as f: json.dump(restaurantes, f)
-with open("precarga_datos/articulos.json", "w") as f: json.dump(articulos, f)
-with open("precarga_datos/ordenes.json", "w") as f: json.dump(ordenes, f)
-with open("precarga_datos/resenias.json", "w") as f: json.dump(resenias, f)
+
+#with open("precarga_datos/usuarios.json", "w") as f: json.dump(usuarios, f)
+#with open("precarga_datos/restaurantes.json", "w") as f: json.dump(restaurantes, f)
+#with open("precarga_datos/articulos.json", "w") as f: json.dump(articulos, f)
+#with open("precarga_datos/ordenes.json", "w") as f: json.dump(ordenes, f)
+#with open("precarga_datos/resenias.json", "w") as f: json.dump(resenias, f)
+
+# Al final del archivo, reemplaza la sección de guardar archivos con:
+from pymongo import MongoClient
+
+# Conectarse a MongoDB
+client = MongoClient("mongodb+srv://<usuario>:<costraseña>@cluster0.dpdp0um.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")  
+db = client["restaurante_db"]
+
+# Insertar datos
+db.usuarios.insert_many(usuarios)
+db.restaurantes.insert_many(restaurantes)
+db.articulos.insert_many(articulos)
+db.ordenes.insert_many(ordenes)
+db.resenias.insert_many(resenias)
+
+print("Datos insertados directamente en MongoDB con ObjectId.")
+
 
 print("Archivos .json generados.")

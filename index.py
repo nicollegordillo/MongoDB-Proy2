@@ -151,6 +151,9 @@ async def listar_resenias():
         resenias = await db.resenias.find().to_list(100)
         for r in resenias:
             r["_id"] = str(r["_id"])
+            r["usuario_id"]= str(r["usuario_id"])
+            r["restaurante_id"] = str(r["restaurante_id"])
+            r["orden_id"] = str(r["orden_id"])
         return resenias
     except Exception as e:
         print(f"Error al listar reseñas: {e}")
@@ -164,6 +167,9 @@ async def obtener_resenia(id: str):
         if not r:
             raise HTTPException(status_code=404, detail="Reseña no encontrada")
         r["_id"] = str(r["_id"])
+        r["usuario_id"]= str(r["usuario_id"])
+        r["restaurante_id"] = str(r["restaurante_id"])
+        r["orden_id"] = str(r["orden_id"])
         return r
     except Exception as e:
         print(f"Error al obtener reseña: {e}")
