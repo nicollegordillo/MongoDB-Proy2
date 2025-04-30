@@ -209,7 +209,7 @@ async def obtener_restaurante(id: str):
         print(f"Error al obtener restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
-app.get("/restaurantes")
+app.get("/restaurantes/")
 async def obtener_restaurante():
     try:
         r = await db.restaurantes.find().to_list(100)
@@ -247,10 +247,11 @@ async def actualizar_restaurante(id: str, data: dict):
 app.post("/agg/top-res/{limit}")
 async def top_restaurantes(limit: int):
     try:
-        res = await db.resenias.aggregate([
+        cursor = db.resenias.aggregate([
             {"$sort": {"calificacionPromedio": -1}},
             {"$limit": limit}
         ])
+        res = await cursor.to_list(length = limit)
         return res
     except Exception as e:
         print(f"Error alobteniendo top restaurante: {e}")
@@ -261,7 +262,7 @@ async def top_restaurantes(limit: int):
 app.post("/agg/top-dish/{limit}")
 async def top_platos(limit: int):
     try:
-        res = await db.ordenes.aggregate([
+        cursor = db.ordenes.aggregate([
             {"$unwind": "$items"},
             {"$group": {
                 "_id": {
@@ -279,6 +280,8 @@ async def top_platos(limit: int):
                 "total_sales": 1
             }}
         ])
+        res = await cursor.to_list(length = limit)
+
         return res
     except Exception as e:
         print(f"Error alobteniendo top restaurante: {e}")
@@ -288,13 +291,15 @@ async def top_platos(limit: int):
 app.post("/agg/user-spent/")
 async def top_platos():
     try:
-        res = await db.ordenes.aggregate([
+        cursor = db.ordenes.aggregate([
             {"$group": {
                 "_id": "$usuario_id",
                 "spent": {"$sum": "$total"}
             }}
         ])
+        res = await cursor.to_list()
         return res
+
     except Exception as e:
         print(f"Error alobteniendo top restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
