@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
         await db.restaurantes.create_index([("nombre",-1)])
         await db.restaurantes.create_index([("categorias",1)])
         await db.restaurantes.create_index([("calificacionPromedio",-1)])
-        
+
         print(" Índices creados correctamente.")
     except Exception as e:
         print(f" Error creando índices: {e}")
@@ -51,6 +51,11 @@ if mongo_uri:
 else:
     print("Error: MONGODB_URI no configurada.")
 
+def get_db():
+    mongo_uri = os.environ["MONGODB_URI"]
+    client = AsyncIOMotorClient(mongo_uri)
+    return client["restaurante_db"]
+
 # ------------------------------
 # CRUD ÓRDENES
 # ------------------------------
@@ -58,6 +63,7 @@ else:
 @app.post("/ordenes/")
 async def crear_orden(orden: dict):
     try:
+        db = get_db()
         res = await db.ordenes.insert_one(orden)
         return {"id": str(res.inserted_id)}
     except Exception as e:
@@ -67,6 +73,7 @@ async def crear_orden(orden: dict):
 @app.get("/ordenes/")
 async def listar_ordenes(skip: int = 0, limit: int = 10):
     try:
+        db = get_db()
         ordenes = await db.ordenes.find().skip(skip).limit(limit).to_list(100)
         for o in ordenes:
             o["_id"] = str(o["_id"])
@@ -78,6 +85,7 @@ async def listar_ordenes(skip: int = 0, limit: int = 10):
 @app.get("/ordenes/{id}")
 async def obtener_orden(id: str):
     try:
+        db = get_db()
         orden = await db.ordenes.find_one({"_id": ObjectId(id)})
         if not orden:
             raise HTTPException(status_code=404, detail="Orden no encontrada")
@@ -90,6 +98,7 @@ async def obtener_orden(id: str):
 @app.put("/ordenes/{id}")
 async def actualizar_estado(id: str, estado: str):
     try:
+        db = get_db()
         res = await db.ordenes.update_one({"_id": ObjectId(id)}, {"$set": {"estado": estado}})
         return {"modificados": res.modified_count}
     except Exception as e:
@@ -99,6 +108,7 @@ async def actualizar_estado(id: str, estado: str):
 @app.delete("/ordenes/{id}")
 async def eliminar_orden(id: str):
     try:
+        db = get_db()
         res = await db.ordenes.delete_one({"_id": ObjectId(id)})
         return {"eliminados": res.deleted_count}
     except Exception as e:
@@ -112,6 +122,7 @@ async def eliminar_orden(id: str):
 @app.post("/resenias/")
 async def crear_resenia(resenia: dict):
     try:
+        db = get_db()
         res = await db.resenias.insert_one(resenia)
         return {"id": str(res.inserted_id)}
     except Exception as e:
@@ -121,6 +132,7 @@ async def crear_resenia(resenia: dict):
 @app.get("/resenias/")
 async def listar_resenias():
     try:
+        db = get_db()
         resenias = await db.resenias.find().to_list(100)
         for r in resenias:
             r["_id"] = str(r["_id"])
@@ -132,6 +144,7 @@ async def listar_resenias():
 @app.get("/resenias/{id}")
 async def obtener_resenia(id: str):
     try:
+        db = get_db()
         r = await db.resenias.find_one({"_id": ObjectId(id)})
         if not r:
             raise HTTPException(status_code=404, detail="Reseña no encontrada")
@@ -144,6 +157,7 @@ async def obtener_resenia(id: str):
 @app.put("/resenias/{id}")
 async def actualizar_resenia(id: str, data: dict):
     try:
+        db = get_db()
         res = await db.resenias.update_one({"_id": ObjectId(id)}, {"$set": data})
         return {"modificados": res.modified_count}
     except Exception as e:
@@ -153,6 +167,7 @@ async def actualizar_resenia(id: str, data: dict):
 @app.delete("/resenias/{id}")
 async def eliminar_resenia(id: str):
     try:
+        db = get_db()
         res = await db.resenias.delete_one({"_id": ObjectId(id)})
         return {"eliminados": res.deleted_count}
     except Exception as e:
@@ -166,6 +181,7 @@ async def eliminar_resenia(id: str):
 @app.post("/imagenes/")
 async def subir_imagen(file: UploadFile):
     try:
+        db = get_db()
         fs = AsyncIOMotorGridFSBucket(db)
         contenido = await file.read()
         file_id = await fs.upload_from_stream(file.filename, contenido)
@@ -177,29 +193,33 @@ async def subir_imagen(file: UploadFile):
 @app.get("/imagenes/{id}")
 async def obtener_imagen(id: str):
     try:
+        db = get_db()
         fs = AsyncIOMotorGridFSBucket(db)
         stream = await fs.open_download_stream(ObjectId(id))
         return StreamingResponse(stream, media_type="image/jpeg")
     except Exception as e:
         print(f"Error al obtener imagen: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
 
 # ------------------------------
-# CRUD RESTAURANTES
-# ------------------------------
-
+ # CRUD RESTAURANTES
+ # ------------------------------
+ 
 @app.post("/restaurantes/")
 async def crear_restaurante(rest: dict):
     try:
+        db = get_db()
         res = await db.restaurantes.insert_one(rest)
         return {"id": str(res.inserted_id)}
     except Exception as e:
         print(f"Error al crear reseña: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-app.get("/restaurantes/{id}")
+@app.get("/restaurantes/{id}")
 async def obtener_restaurante(id: str):
     try:
+        db = get_db()
         r = await db.restaurantes.find_one({"_id": ObjectId(id)})
         if not r:
             raise HTTPException(status_code=404, detail="Restaurante no encontrada")
@@ -212,6 +232,7 @@ async def obtener_restaurante(id: str):
 app.get("/restaurantes/")
 async def obtener_restaurante():
     try:
+        db = get_db()
         r = await db.restaurantes.find().to_list(100)
         if not r:
             raise HTTPException(status_code=404, detail="Restaurante no encontrada")
@@ -221,19 +242,21 @@ async def obtener_restaurante():
         print(f"Error al obtener restaurantes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-app.delete("/restaurantes/{id}")
+@app.delete("/restaurantes/{id}")
 async def eliminar_restaurante():
     try:
+        db = get_db()
         r = await db.restaurantes.delete_one({"_id": ObjectId(id)})
         return {"eliminados": r.deleted_count}
     except Exception as e:
         print(f"Error al eliminar restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-app.put("/restaurantes/{id}")
+@app.put("/restaurantes/{id}")
 async def actualizar_restaurante(id: str, data: dict):
     try:
-        res = await db.actualizar_restaurante.update_one({"_id": ObjectId(id)}, {"$set": data})
+        db = get_db()
+        res = await db.restaurante.update_one({"_id": ObjectId(id)}, {"$set": data})
         return {"modificados": res.modified_count}
     except Exception as e:
         print(f"Error al actualizar restaurante: {e}")
@@ -244,25 +267,25 @@ async def actualizar_restaurante(id: str, data: dict):
 # ------------------------------
 
 # Top restaurantes (mejor calificacion)
-app.post("/agg/top-res/{limit}")
+@app.post("/agg/top-res/{limit}")
 async def top_restaurantes(limit: int):
     try:
-        cursor = db.resenias.aggregate([
+        db = get_db()
+        res = await db.resenias.aggregate([
             {"$sort": {"calificacionPromedio": -1}},
             {"$limit": limit}
         ])
-        res = await cursor.to_list(length = limit)
         return res
     except Exception as e:
         print(f"Error alobteniendo top restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
+    
 # Top articulos (mas vendidos)
-app.post("/agg/top-dish/{limit}")
+@app.post("/agg/top-dish/{limit}")
 async def top_platos(limit: int):
     try:
-        cursor = db.ordenes.aggregate([
+        db = get_db()
+        res = await db.ordenes.aggregate([
             {"$unwind": "$items"},
             {"$group": {
                 "_id": {
@@ -280,26 +303,28 @@ async def top_platos(limit: int):
                 "total_sales": 1
             }}
         ])
-        res = await cursor.to_list(length = limit)
-
         return res
     except Exception as e:
         print(f"Error alobteniendo top restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Gastos de clientes (gasto total por cada cliente)
-app.post("/agg/user-spent/")
+@app.post("/agg/user-spent/")
 async def top_platos():
     try:
-        cursor = db.ordenes.aggregate([
+        db = get_db()
+        res = await db.ordenes.aggregate([
             {"$group": {
                 "_id": "$usuario_id",
                 "spent": {"$sum": "$total"}
             }}
         ])
-        res = await cursor.to_list()
         return res
 
     except Exception as e:
         print(f"Error alobteniendo top restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
