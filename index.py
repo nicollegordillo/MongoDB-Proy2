@@ -309,7 +309,7 @@ async def top_platos(limit: int):
                 "pipeline": [
                     {"$match": {
                         "expr": {
-                            "$eq": ["$articulo_id", "$$articulo_id"]
+                            "$eq": ["$_id", "$$articulo_id"]
                         }
                     }}
                 ],
@@ -397,9 +397,9 @@ async def resenias_por_restaurante(id: str):
             {"$project": {
                 "user_info": "$user_info",
                 "order_info": "$order_info",
-                "comentario": 1,
-                "calificacion": 1,
-                "fecha": 1
+                "comentario": "$comentario",
+                "calificacion": "&calificacion",
+                "fecha": "$fecha"
             }}
         ])
         res = await cursor.to_list() 
