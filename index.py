@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from contextlib import asynccontextmanager
 
+from models.articulo import Articulo
 from models.usuario import Usuario
 
 @asynccontextmanager
@@ -480,4 +481,16 @@ async def eliminar_usuario(id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ------------------------------
+# CRUD ARTICULOS DEL MENU
+# ------------------------------
+
+@app.post("/articulos/")
+async def crear_articulo(articulo: Articulo):
+    try:
+        db = get_db()
+        res = await db.articulos.insert_one(articulo.dict())
+        return {"id": str(res.inserted_id)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
