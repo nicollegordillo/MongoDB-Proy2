@@ -442,7 +442,6 @@ async def resenias_por_restaurante(id: str):
         ])
         
         res = await cursor.to_list() 
-        res = await cursor.to_list() 
         parsed = convert_object_ids(res)
         return parsed
         
