@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import Body, FastAPI, HTTPException, UploadFile
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
@@ -258,7 +258,7 @@ async def obtener_restaurante(id: str):
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.post("/restaurantes/list")
-async def options_restaurante(body: RestauranteOptions):
+async def options_restaurante(body: RestauranteOptions = Body(...)):
     try: 
         db = get_db()
         pipeline = []
@@ -503,7 +503,37 @@ async def resenias_por_restaurante(id: str):
 # ----------------------------
 # Bulk Write
 # ----------------------------
+# @app.put("/{collection}/bulk-update")
+# async def bulk_update_stock(updates: list[dict]):
+#     try:
+#         # Prepare bulk operations
+#         operations = []
+#         for update in updates:
+#             try:
+#                 oid = ObjectId(update["id"])
+#             except Exception:
+#                 continue  # or raise HTTPException(400, "Invalid ID")
 
+#             operations.append(
+#                 UpdateOne(
+#                     {"_id": oid},
+#                     {"$set": {"stock": update["stock"]}}
+#                 )
+#             )
+
+#         if not operations:
+#             raise HTTPException(status_code=400, detail="No valid updates provided")
+
+#         # Execute bulk write
+#         result = await db.articulos.bulk_write(operations)
+#         return {
+#             "matched": result.matched_count,
+#             "modified": result.modified_count
+#         }
+
+#     except Exception as e:
+#         print(f"Bulk update error: {e}")
+#         raise HTTPException(status_code=500, detail="Bulk update failed")
 # ------------------------------
 # CRUD USUARIOS
 # ------------------------------
