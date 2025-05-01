@@ -287,20 +287,18 @@ async def top_platos(limit: int):
     try:
         db = get_db()
         cursor = db.ordenes.aggregate([
-            # Encontrar items con mayores ventas
             {"$unwind": "$items"},
             {"$group": {
                 "_id": "$items.articulo_id",
                 "total_sales": {"$sum": "$items.cantidad"}
             }},
-            # Obtener top 
             {"$sort": {"total_sales": -1}},
             {"$limit": limit},
             {"$project": {
+                "_id": 0,
                 "articulo_id": "$_id",
                 "total_sales": 1
             }},
-            # Obtener la info de los articulos
             {"$lookup": {
                 "from": "articulos",
                 "let": {
@@ -308,14 +306,13 @@ async def top_platos(limit: int):
                 },
                 "pipeline": [
                     {"$match": {
-                        "expr": {
+                        "$expr": {
                             "$eq": ["$_id", "$$articulo_id"]
                         }
                     }}
                 ],
                 "as": "articulo"
             }},
-            # formato
             {"$project": {
                 "total_sales": 1,
                 "articulo": 1
@@ -340,7 +337,6 @@ async def gastos_usuario():
         ])
         res = await cursor.to_list() 
         return res
-
     except Exception as e:
         print(f"Error alobteniendo top restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -362,7 +358,7 @@ async def resenias_por_restaurante(id: str):
                 },
                 "pipeline": [
                     {"$match": {
-                        "expr": {
+                        "$expr": {
                             "$eq": ["$_id", "$$usuario_id"]
                         }
                     }},
@@ -381,7 +377,7 @@ async def resenias_por_restaurante(id: str):
                 },
                 "pipeline": [
                     {"$match": {
-                        "expr": {
+                        "$expr": {
                             "$eq": ["$_id", "$$orden_id"]
                         }
                     }},
