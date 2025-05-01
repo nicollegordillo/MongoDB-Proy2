@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from models.articulo import Articulo
 from models.usuario import Usuario
+from models.restaurantes import RestauranteOptions
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -242,7 +243,6 @@ async def listar_restaurantes():
         print(f"Error al obtener restaurantes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/restaurantes/{id}")
 async def obtener_restaurante(id: str):
     try:
@@ -257,6 +257,56 @@ async def obtener_restaurante(id: str):
         print(f"Error al obtener restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
+@app.post("/restaurantes/list")
+async def options_restaurante(body: RestauranteOptions):
+    try: 
+        db = get_db()
+        pipeline = []
+        # 1. Filtros simples
+        if body.simple_filter:
+            simple_filter = []
+            for key, value in body.simple_filter:
+                simple_filter.append({
+                    "$eq": [f"${key}",f"{value}"]
+                })
+            pipeline.append({"$match": {
+                "$expr": {
+                    "$and": simple_filter
+                }
+            }})
+        # 2. Categorias
+        if body.categories:
+            pipeline.append({"$match": {
+                "$expr": {
+                    "$gt": [
+                        {"$size": {
+                            "$setIntersection": ["$categorias", body.categories]
+                        }}
+                    ]
+                }
+            }})
+        # 3. Sort
+        if body.simple_sort:
+            simple_sort = {}
+            for key, value in body.simple_sort:
+                simple_sort[key] = value
+            pipeline.append({
+                "$sort": simple_sort
+            })
+        # 4. Skip
+        if body.skip:
+            pipeline.append({"$skip": body.skip})
+        if body.limit:
+            pipeline.append({"$limit": body.limit})
+    
+        cursor = db.restaurants.aggregate(pipeline)
+        result = await cursor.to_list(length=body.limit)
+        parsed = convert_object_ids(result)
+        return parsed
+    except Exception as e:
+        print(f"Error al obtener restaurantes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/restaurantes/")
 async def crear_restaurante(rest: dict):
     try:
@@ -448,6 +498,12 @@ async def resenias_por_restaurante(id: str):
     except Exception as e:
         print(f"Error obteniendo top restaurantes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+# ----------------------------
+# Bulk Write
+# ----------------------------
+
 # ------------------------------
 # CRUD USUARIOS
 # ------------------------------

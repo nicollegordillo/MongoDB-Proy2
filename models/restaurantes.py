@@ -1,7 +1,7 @@
 
 from pydantic import BaseModel
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Literal
 
 class Coordenadas(BaseModel):
     type: str
@@ -20,3 +20,13 @@ class Restaurante(BaseModel):
     menu: List[str]
     calificacionPromedio: float
     resenias: List[str]
+
+# Para los queries 
+
+class RestauranteOptions(BaseModel):
+    simple_filter: Optional[Dict[Literal["nombre", "calificacionPromedio"], str]]
+    simple_sort: Optional[Dict[str, Literal[1,-1]]]
+    limit: Optional[int]
+    skip: Optional[int]
+    categories: Optional[List[str]]
+    
