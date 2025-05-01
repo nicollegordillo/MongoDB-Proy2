@@ -5,6 +5,8 @@ from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from contextlib import asynccontextmanager
 
+from models.usuario import Usuario
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Crear índices al iniciar
@@ -224,8 +226,8 @@ async def obtener_imagen(id: str):
     
 
 # ------------------------------
- # CRUD RESTAURANTES
- # ------------------------------
+# CRUD RESTAURANTES
+# ------------------------------
  
 @app.get("/restaurantes/")
 async def listar_restaurantes():
@@ -423,4 +425,16 @@ async def resenias_por_restaurante(id: str):
         return res
     except Exception as e:
         print(f"Error obteniendo top restaurantes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    # ------------------------------
+# CRUD USUARIOS
+# ------------------------------
+
+@app.post("/usuarios/")
+async def crear_usuario(usuario: Usuario):
+    try:
+        db = get_db()
+        res = await db.usuarios.insert_one(usuario.dict())
+        return {"id": str(res.inserted_id)}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
