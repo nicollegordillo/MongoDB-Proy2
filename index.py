@@ -493,4 +493,29 @@ async def crear_articulo(articulo: Articulo):
         return {"id": str(res.inserted_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.get("/articulos/")
+async def listar_articulos(nombre: str = None, categoria: str = None, restaurante_id: str = None, disponible: bool = None):
+    try:
+        db = get_db()
+        filtro = {}
+        if nombre: filtro["nombre"] = {"$regex": nombre, "$options": "i"}
+        if categoria: filtro["categorias"] = categoria
+        if restaurante_id: filtro["restaurante_id"] = restaurante_id
+        if disponible is not None: filtro["disponible"] = disponible
+        articulos = await db.articulos.find(filtro).to_list(100)
+        for a in articulos: a["_id"] = str(a["_id"])
+        return articulos
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/articulos/{id}")
+async def obtener_articulo(id: str):
+    try:
+        db = get_db()
+        a = await db.articulos.find_one({"_id": ObjectId(id)})
+        if not a: raise HTTPException(status_code=404, detail="Artículo no encontrado")
+        a["_id"] = str(a["_id"])
+        return a
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
