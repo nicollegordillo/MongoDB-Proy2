@@ -462,4 +462,22 @@ async def obtener_usuario(id: str):
         return u
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.put("/usuarios/{id}")
+async def actualizar_usuario(id: str, data: dict):
+    try:
+        db = get_db()
+        res = await db.usuarios.update_one({"_id": ObjectId(id)}, {"$set": data})
+        return {"modificados": res.modified_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/usuarios/{id}")
+async def eliminar_usuario(id: str):
+    try:
+        db = get_db()
+        res = await db.usuarios.delete_one({"_id": ObjectId(id)})
+        return {"eliminados": res.deleted_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
