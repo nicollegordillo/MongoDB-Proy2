@@ -507,7 +507,6 @@ async def listar_articulos(nombre: str = None, categoria: str = None, restaurant
         return articulos
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/articulos/{id}")
 async def obtener_articulo(id: str):
     try:
@@ -518,4 +517,22 @@ async def obtener_articulo(id: str):
         return a
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.put("/articulos/{id}")
+async def actualizar_articulo(id: str, data: dict):
+    try:
+        db = get_db()
+        res = await db.articulos.update_one({"_id": ObjectId(id)}, {"$set": data})
+        return {"modificados": res.modified_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/articulos/{id}")
+async def eliminar_articulo(id: str):
+    try:
+        db = get_db()
+        res = await db.articulos.delete_one({"_id": ObjectId(id)})
+        return {"eliminados": res.deleted_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
