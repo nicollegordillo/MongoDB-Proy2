@@ -247,6 +247,7 @@ async def obtener_restaurante(id: str):
         r = await db.restaurantes.find_one({"_id": ObjectId(id)})
         if not r:
             raise HTTPException(status_code=404, detail="Restaurante no encontrada")
+        
         r["_id"] = str(r["_id"])
         return r
     except Exception as e:
@@ -258,14 +259,15 @@ async def crear_restaurante(rest: dict):
     try:
         db = get_db()
         res = await db.restaurantes.insert_one(rest)
+        
         return {"id": str(res.inserted_id)}
     except Exception as e:
         print(f"Error al crear reseña: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/restaurantes/{id}")
-async def eliminar_restaurante():
-    try:
+async def eliminar_restaurante(id: str):
+    try:        
         db = get_db()
         r = await db.restaurantes.delete_one({"_id": ObjectId(id)})
         return {"eliminados": r.deleted_count}
@@ -277,8 +279,9 @@ async def eliminar_restaurante():
 async def actualizar_restaurante(id: str, data: dict):
     try:
         db = get_db()
-        res = await db.restaurante.update_one({"_id": ObjectId(id)}, {"$set": data})
-        return {"modificados": res.modified_count}
+        res = await db.restaurantes.update_one({"_id": ObjectId(id)}, {"$set": data})
+        if res.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Restaurante no encontrado")
     except Exception as e:
         print(f"Error al actualizar restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -288,23 +291,34 @@ async def actualizar_restaurante(id: str, data: dict):
 # ------------------------------
 
 # Top restaurantes (mejor calificacion)
-@app.post("/agg/top-res/{limit}")
-async def top_restaurantes(limit: int):
+def convert_object_ids(obj):
+    if isinstance(obj, dict):
+        return {k: convert_object_ids(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_object_ids(item) for item in obj]
+    elif isinstance(obj, ObjectId):
+        return str(obj)
+    else:
+        return obj
+
+@app.post("/agg/top-res/")
+async def top_restaurantes():
     try:
         db = get_db()
         cursor = db.restaurantes.aggregate([
             {"$sort": {"calificacionPromedio": -1}},
-            {"$limit": limit}
+            {"$limit": 10}
         ])
-        res = await cursor.to_list(length=limit) 
-        return res
+        res = await cursor.to_list() 
+        parsed = convert_object_ids(res)
+        return parsed
     except Exception as e:
         print(f"Error obteniendo top restaurantes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 # Top articulos (mas vendidos)
-@app.post("/agg/top-dish/{limit}")
-async def top_platos(limit: int):
+@app.post("/agg/top-dish/")
+async def top_platos():
     try:
         db = get_db()
         cursor = db.ordenes.aggregate([
@@ -314,7 +328,7 @@ async def top_platos(limit: int):
                 "total_sales": {"$sum": "$items.cantidad"}
             }},
             {"$sort": {"total_sales": -1}},
-            {"$limit": limit},
+            {"$limit": 10},
             {"$project": {
                 "_id": 0,
                 "articulo_id": "$_id",
@@ -334,13 +348,17 @@ async def top_platos(limit: int):
                 ],
                 "as": "articulo"
             }},
+            { "$unwind": "$articulo" },
             {"$project": {
                 "total_sales": 1,
                 "articulo": 1
             }}
         ])
-        res = await cursor.to_list(length=limit) 
-        return res
+        
+        res = await cursor.to_list() 
+        parsed = convert_object_ids(res)
+        return parsed
+        
     except Exception as e:
         print(f"Error alobteniendo top restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -356,12 +374,15 @@ async def gastos_usuario():
                 "spent": {"$sum": "$total"}
             }}
         ])
+        
         res = await cursor.to_list() 
-        return res
+        parsed = convert_object_ids(res)
+        return parsed
+        
     except Exception as e:
         print(f"Error alobteniendo top restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
+    
 
 @app.post("/agg/resenias/{id}")
 async def resenias_por_restaurante(id: str):
@@ -371,7 +392,6 @@ async def resenias_por_restaurante(id: str):
             {"$match": { 
                 "restaurante_id": ObjectId(id) 
             }},
-            # Info de usuario
             {"$lookup": {
                 "from": "usuarios",
                 "let": {
@@ -390,7 +410,6 @@ async def resenias_por_restaurante(id: str):
                 ],
                 "as": "user_info"
             }},
-            # Info de orden
             {"$lookup": {
                 "from": "ordenes",
                 "let": {
@@ -410,7 +429,6 @@ async def resenias_por_restaurante(id: str):
                 ],
                 "as": "order_info"
             }},
-            # integracion
             {"$project": {
                 "user_info": "$user_info",
                 "order_info": "$order_info",
@@ -419,8 +437,12 @@ async def resenias_por_restaurante(id: str):
                 "fecha": "$fecha"
             }}
         ])
+        
         res = await cursor.to_list() 
-        return res
+        res = await cursor.to_list() 
+        parsed = convert_object_ids(res)
+        return parsed
+        
     except Exception as e:
         print(f"Error obteniendo top restaurantes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
