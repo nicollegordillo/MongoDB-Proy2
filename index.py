@@ -5,6 +5,9 @@ from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from contextlib import asynccontextmanager
 
+from models.articulo import Articulo
+from models.usuario import Usuario
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Crear índices al iniciar
@@ -224,8 +227,8 @@ async def obtener_imagen(id: str):
     
 
 # ------------------------------
- # CRUD RESTAURANTES
- # ------------------------------
+# CRUD RESTAURANTES
+# ------------------------------
  
 @app.get("/restaurantes/")
 async def listar_restaurantes():
@@ -446,3 +449,112 @@ async def resenias_por_restaurante(id: str):
     except Exception as e:
         print(f"Error obteniendo top restaurantes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+# ------------------------------
+# CRUD USUARIOS
+# ------------------------------
+
+@app.post("/usuarios/")
+async def crear_usuario(usuario: Usuario):
+    try:
+        db = get_db()
+        res = await db.usuarios.insert_one(usuario.dict())
+        return {"id": str(res.inserted_id)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/usuarios/")
+async def listar_usuarios(tipo: str = None, correo: str = None, nombre: str = None):
+    try:
+        db = get_db()
+        filtro = {}
+        if tipo: filtro["tipo"] = tipo
+        if correo: filtro["correo"] = correo
+        if nombre: filtro["nombre"] = {"$regex": nombre, "$options": "i"}
+        usuarios = await db.usuarios.find(filtro).to_list(100)
+        for u in usuarios: u["_id"] = str(u["_id"])
+        return usuarios
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/usuarios/{id}")
+async def obtener_usuario(id: str):
+    try:
+        db = get_db()
+        u = await db.usuarios.find_one({"_id": ObjectId(id)})
+        if not u: raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        u["_id"] = str(u["_id"])
+        return u
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+@app.put("/usuarios/{id}")
+async def actualizar_usuario(id: str, data: dict):
+    try:
+        db = get_db()
+        res = await db.usuarios.update_one({"_id": ObjectId(id)}, {"$set": data})
+        return {"modificados": res.modified_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/usuarios/{id}")
+async def eliminar_usuario(id: str):
+    try:
+        db = get_db()
+        res = await db.usuarios.delete_one({"_id": ObjectId(id)})
+        return {"eliminados": res.deleted_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ------------------------------
+# CRUD ARTICULOS DEL MENU
+# ------------------------------
+
+@app.post("/articulos/")
+async def crear_articulo(articulo: Articulo):
+    try:
+        db = get_db()
+        res = await db.articulos.insert_one(articulo.dict())
+        return {"id": str(res.inserted_id)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/articulos/")
+async def listar_articulos(nombre: str = None, categoria: str = None, restaurante_id: str = None, disponible: bool = None):
+    try:
+        db = get_db()
+        filtro = {}
+        if nombre: filtro["nombre"] = {"$regex": nombre, "$options": "i"}
+        if categoria: filtro["categorias"] = categoria
+        if restaurante_id: filtro["restaurante_id"] = restaurante_id
+        if disponible is not None: filtro["disponible"] = disponible
+        articulos = await db.articulos.find(filtro).to_list(100)
+        for a in articulos: a["_id"] = str(a["_id"])
+        return articulos
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/articulos/{id}")
+async def obtener_articulo(id: str):
+    try:
+        db = get_db()
+        a = await db.articulos.find_one({"_id": ObjectId(id)})
+        if not a: raise HTTPException(status_code=404, detail="Artículo no encontrado")
+        a["_id"] = str(a["_id"])
+        return a
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+@app.put("/articulos/{id}")
+async def actualizar_articulo(id: str, data: dict):
+    try:
+        db = get_db()
+        res = await db.articulos.update_one({"_id": ObjectId(id)}, {"$set": data})
+        return {"modificados": res.modified_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/articulos/{id}")
+async def eliminar_articulo(id: str):
+    try:
+        db = get_db()
+        res = await db.articulos.delete_one({"_id": ObjectId(id)})
+        return {"eliminados": res.deleted_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
