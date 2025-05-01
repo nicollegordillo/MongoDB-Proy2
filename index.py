@@ -426,7 +426,7 @@ async def resenias_por_restaurante(id: str):
     except Exception as e:
         print(f"Error obteniendo top restaurantes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    # ------------------------------
+# ------------------------------
 # CRUD USUARIOS
 # ------------------------------
 
@@ -438,3 +438,28 @@ async def crear_usuario(usuario: Usuario):
         return {"id": str(res.inserted_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.get("/usuarios/")
+async def listar_usuarios(tipo: str = None, correo: str = None, nombre: str = None):
+    try:
+        db = get_db()
+        filtro = {}
+        if tipo: filtro["tipo"] = tipo
+        if correo: filtro["correo"] = correo
+        if nombre: filtro["nombre"] = {"$regex": nombre, "$options": "i"}
+        usuarios = await db.usuarios.find(filtro).to_list(100)
+        for u in usuarios: u["_id"] = str(u["_id"])
+        return usuarios
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/usuarios/{id}")
+async def obtener_usuario(id: str):
+    try:
+        db = get_db()
+        u = await db.usuarios.find_one({"_id": ObjectId(id)})
+        if not u: raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        u["_id"] = str(u["_id"])
+        return u
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
