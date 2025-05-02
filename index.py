@@ -289,7 +289,7 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
             }}
             )
         # 3. Sort
-        if body.simple_sort
+        if body.simple_sort:
             simple_sort = {}
             for key, value in body.simple_sort.items():
                 simple_sort[key] = value
