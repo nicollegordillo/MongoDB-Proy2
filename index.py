@@ -263,9 +263,9 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
         db = get_db()
         pipeline = []
         # 1. Filtros simples
-        if body.simple_filter.items():
+        if body.simple_filter:
             simple_filter = []
-            for key, value in body.simple_filter:
+            for key, value in body.simple_filter.items():
                 simple_filter.append({
                     "$eq": [ f"${key}",f"{value}" ]
                 })
@@ -289,9 +289,9 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
             }}
             )
         # 3. Sort
-        if body.simple_sort.items():
+        if body.simple_sort
             simple_sort = {}
-            for key, value in body.simple_sort:
+            for key, value in body.simple_sort.items():
                 simple_sort[key] = value
             pipeline.append({
                 "$sort": simple_sort
