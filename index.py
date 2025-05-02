@@ -263,20 +263,22 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
         db = get_db()
         pipeline = []
         # 1. Filtros simples
-        if body.simple_filter:
+        if body.simple_filter.items():
             simple_filter = []
             for key, value in body.simple_filter:
                 simple_filter.append({
-                    "$eq": [f"${key}",f"{value}"]
+                    "$eq": [ f"${key}",f"{value}" ]
                 })
-            pipeline.append({"$match": {
+            pipeline.append(
+            {"$match": {
                 "$expr": {
                     "$and": simple_filter
                 }
             }})
         # 2. Categorias
         if body.categories:
-            pipeline.append({"$match": {
+            pipeline.append(
+            {"$match": {
                 "$expr": {
                     "$gt": [
                         {"$size": {
@@ -284,9 +286,10 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
                         }},0
                     ]
                 }
-            }})
+            }}
+            )
         # 3. Sort
-        if body.simple_sort:
+        if body.simple_sort.items():
             simple_sort = {}
             for key, value in body.simple_sort:
                 simple_sort[key] = value
@@ -300,7 +303,7 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
             pipeline.append({"$limit": body.limit})
     
         cursor = db.restaurantes.aggregate(pipeline)
-        result = await cursor.to_list(length=body.limit)
+        result = await cursor.to_list()
         parsed = convert_object_ids(result)
         return parsed
     except Exception as e:
