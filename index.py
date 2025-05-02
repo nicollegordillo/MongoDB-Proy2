@@ -281,7 +281,7 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
                     "$gt": [
                         {"$size": {
                             "$setIntersection": ["$categorias", body.categories]
-                        }}
+                        }},0
                     ]
                 }
             }})
@@ -299,7 +299,7 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
         if body.limit:
             pipeline.append({"$limit": body.limit})
     
-        cursor = db.restaurants.aggregate(pipeline)
+        cursor = db.restaurantes.aggregate(pipeline)
         result = await cursor.to_list(length=body.limit)
         parsed = convert_object_ids(result)
         return parsed
