@@ -611,7 +611,7 @@ async def listar_articulos(nombre: str = None, categoria: str = None, restaurant
         if nombre: filtro["nombre"] = {"$regex": nombre, "$options": "i"}
         if categoria: filtro["categorias"] = categoria
         if restaurante_id: filtro["restaurante_id"] = restaurante_id
-        if disponible is not None: filtro["disponible"] = disponible
+        if disponible in [True, False]: filtro["disponible"] = disponible
         articulos = await db.articulos.find(filtro).to_list(100)
         for a in articulos: a["_id"] = str(a["_id"])
         return articulos
