@@ -613,10 +613,18 @@ async def listar_articulos(nombre: str = None, categoria: str = None, restaurant
         if restaurante_id: filtro["restaurante_id"] = restaurante_id
         if disponible in [True, False]: filtro["disponible"] = disponible
         articulos = await db.articulos.find(filtro).to_list(100)
-        for a in articulos: a["_id"] = str(a["_id"])
-        return articulos
+        resultado = []
+        for a in articulos:
+            try:
+                a["_id"] = str(a["_id"])
+                resultado.append(a)
+            except Exception as inner_e:
+                print(f"[WARN] Documento inválido en artículos: {a} – {inner_e}")
+                continue  # salta artículo mal formado
+
+        return resultado
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error al listar artículos: {e}")
 @app.get("/articulos/{id}")
 async def obtener_articulo(id: str):
     try:
