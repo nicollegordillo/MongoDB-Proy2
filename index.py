@@ -761,8 +761,8 @@ async def obtener_articulo(id: str):
         db = get_db()
         a = await db.articulos.find_one({"_id": ObjectId(id)})
         if not a: raise HTTPException(status_code=404, detail="Artículo no encontrado")
-        a["_id"] = str(a["_id"])
-        return a
+        parsed = convert_object_ids(a)
+        return parsed
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 @app.put("/articulos/{id}")
