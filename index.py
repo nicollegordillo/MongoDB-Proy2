@@ -4,6 +4,8 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from contextlib import asynccontextmanager
+from typing import Optional
+from datetime import datetime
 
 from models.articulo import Articulo
 from models.usuario import Usuario
@@ -122,12 +124,80 @@ async def obtener_orden(id: str):
     except Exception as e:
         print(f"Error al obtener orden: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/ordenes/filtrar")
+async def filtrar_ordenes(
+    usuario_id: Optional[str] = None,
+    estado: Optional[str] = None,
+    fecha: Optional[str] = None,  # formato ISO: "2025-05-01"
+    skip: int = 0,
+    limit: int = 10
+):
+    try:
+        db = get_db()
+        filtro = {}
+
+        if usuario_id:
+            filtro["usuario_id"] = ObjectId(usuario_id)
+        if estado:
+            filtro["estado"] = estado
+        if fecha:
+            try:
+                fecha_dt = datetime.fromisoformat(fecha)
+                filtro["fecha"] = {
+                    "$gte": datetime.combine(fecha_dt.date(), datetime.min.time()),
+                    "$lt": datetime.combine(fecha_dt.date(), datetime.max.time())
+                }
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Formato de fecha inválido. Usa YYYY-MM-DD.")
+
+        ordenes_cursor = db.ordenes.find(filtro).skip(skip).limit(limit)
+        ordenes = await ordenes_cursor.to_list(length=100)
+
+        # Convertir ObjectIds a string
+        for o in ordenes:
+            o["_id"] = str(o["_id"])
+            o["usuario_id"] = str(o["usuario_id"])
+            o["restaurante_id"] = str(o["restaurante_id"])
+            if o.get("resenia_id"):
+                o["resenia_id"] = str(o["resenia_id"])
+            for item in o.get("items", []):
+                if item.get("articulo_id"):
+                    item["articulo_id"] = str(item["articulo_id"])
+
+        return ordenes
+    except Exception as e:
+        print(f"Error al filtrar órdenes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/ordenes/{id}")
 async def actualizar_estado(id: str, estado: str):
     try:
         db = get_db()
         res = await db.ordenes.update_one({"_id": ObjectId(id)}, {"$set": {"estado": estado}})
+        return {"modificados": res.modified_count}
+    except Exception as e:
+        print(f"Error al actualizar orden: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.put("/ordenes/{id}/general")
+async def actualizar_orden(id: str, orden_actualizada: dict = Body(...)):
+    try:
+        db = get_db()
+        
+        # Conversión opcional de IDs a ObjectId
+        if "usuario_id" in orden_actualizada:
+            orden_actualizada["usuario_id"] = ObjectId(orden_actualizada["usuario_id"])
+        if "restaurante_id" in orden_actualizada:
+            orden_actualizada["restaurante_id"] = ObjectId(orden_actualizada["restaurante_id"])
+        if "resenia_id" in orden_actualizada and orden_actualizada["resenia_id"]:
+            orden_actualizada["resenia_id"] = ObjectId(orden_actualizada["resenia_id"])
+        if "items" in orden_actualizada:
+            for item in orden_actualizada["items"]:
+                if "articulo_id" in item:
+                    item["articulo_id"] = ObjectId(item["articulo_id"])
+
+        res = await db.ordenes.update_one({"_id": ObjectId(id)}, {"$set": orden_actualizada})
         return {"modificados": res.modified_count}
     except Exception as e:
         print(f"Error al actualizar orden: {e}")
@@ -151,7 +221,24 @@ async def eliminar_orden(id: str):
 async def crear_resenia(resenia: dict):
     try:
         db = get_db()
+
+        # Validar y convertir IDs a ObjectId
+        for campo in ["usuario_id", "restaurante_id", "orden_id"]:
+            if campo not in resenia:
+                raise HTTPException(status_code=400, detail=f"Falta el campo '{campo}'")
+            try:
+                resenia[campo] = ObjectId(resenia[campo])
+            except Exception:
+                raise HTTPException(status_code=400, detail=f"'{campo}' no es un ObjectId válido")
+
         res = await db.resenias.insert_one(resenia)
+
+        # Actualizar la orden para agregar la reseña 
+        await db.ordenes.update_one(
+            {"_id": resenia["orden_id"]},
+            {"$set": {"resenia_id": res.inserted_id}}
+        )
+
         return {"id": str(res.inserted_id)}
     except Exception as e:
         print(f"Error al crear reseña: {e}")
@@ -187,11 +274,51 @@ async def obtener_resenia(id: str):
     except Exception as e:
         print(f"Error al obtener reseña: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/resenias/filtrar")
+async def filtrar_resenias(
+    restaurante_id: Optional[str] = None,
+    calificacion: Optional[int] = None
+):
+    try:
+        db = get_db()
+        filtro = {}
+
+        if restaurante_id:
+            try:
+                filtro["restaurante_id"] = ObjectId(restaurante_id)
+            except Exception:
+                raise HTTPException(status_code=400, detail="restaurante_id no es un ObjectId válido")
+
+        if calificacion is not None:
+            if calificacion < 1 or calificacion > 5:
+                raise HTTPException(status_code=400, detail="calificación debe estar entre 1 y 5")
+            filtro["calificacion"] = calificacion
+
+        resenias = await db.resenias.find(filtro).to_list(100)
+        for r in resenias:
+            r["_id"] = str(r["_id"])
+            r["usuario_id"] = str(r["usuario_id"])
+            r["restaurante_id"] = str(r["restaurante_id"])
+            r["orden_id"] = str(r["orden_id"])
+        return resenias
+    except Exception as e:
+        print(f"Error al filtrar reseñas: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/resenias/{id}")
 async def actualizar_resenia(id: str, data: dict):
     try:
         db = get_db()
+
+        # Convertir IDs si están presentes
+        for campo in ["usuario_id", "restaurante_id", "orden_id"]:
+            if campo in data:
+                try:
+                    data[campo] = ObjectId(data[campo])
+                except Exception:
+                    raise HTTPException(status_code=400, detail=f"'{campo}' no es un ObjectId válido")
+
         res = await db.resenias.update_one({"_id": ObjectId(id)}, {"$set": data})
         return {"modificados": res.modified_count}
     except Exception as e:
