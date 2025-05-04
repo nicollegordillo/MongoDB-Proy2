@@ -122,14 +122,7 @@ async def filtrar_ordenes(
         if estado:
             filtro["estado"] = estado
         if fecha:
-            try:
-                fecha_dt = datetime.fromisoformat(fecha)
-                filtro["fecha"] = {
-                    "$gte": datetime.combine(fecha_dt.date(), datetime.min.time()),
-                    "$lt": datetime.combine(fecha_dt.date(), datetime.max.time())
-                }
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Formato de fecha inválido. Usa YYYY-MM-DD.")
+            filtro["fecha"] = {"$regex": f"^{fecha}"}
 
         ordenes_cursor = db.ordenes.find(filtro).skip(skip).limit(limit)
         ordenes = await ordenes_cursor.to_list(length=100)
@@ -259,22 +252,6 @@ async def listar_resenias():
         print(f"Error al listar reseñas: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/resenias/{id}")
-async def obtener_resenia(id: str):
-    try:
-        db = get_db()
-        r = await db.resenias.find_one({"_id": ObjectId(id)})
-        if not r:
-            raise HTTPException(status_code=404, detail="Reseña no encontrada")
-        r["_id"] = str(r["_id"])
-        r["usuario_id"]= str(r["usuario_id"])
-        r["restaurante_id"] = str(r["restaurante_id"])
-        r["orden_id"] = str(r["orden_id"])
-        return r
-    except Exception as e:
-        print(f"Error al obtener reseña: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    
 @app.get("/resenias/filtrar")
 async def filtrar_resenias(
     restaurante_id: Optional[str] = None,
@@ -304,6 +281,22 @@ async def filtrar_resenias(
         return resenias
     except Exception as e:
         print(f"Error al filtrar reseñas: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/resenias/{id}")
+async def obtener_resenia(id: str):
+    try:
+        db = get_db()
+        r = await db.resenias.find_one({"_id": ObjectId(id)})
+        if not r:
+            raise HTTPException(status_code=404, detail="Reseña no encontrada")
+        r["_id"] = str(r["_id"])
+        r["usuario_id"]= str(r["usuario_id"])
+        r["restaurante_id"] = str(r["restaurante_id"])
+        r["orden_id"] = str(r["orden_id"])
+        return r
+    except Exception as e:
+        print(f"Error al obtener reseña: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/resenias/{id}")
