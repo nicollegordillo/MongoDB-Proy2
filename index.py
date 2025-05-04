@@ -65,14 +65,23 @@ def get_db():
 # ------------------------------
 
 @app.post("/ordenes/")
-async def crear_orden(orden: dict):
+async def crear_orden(orden_dict: dict):
     try:
         db = get_db()
-        res = await db.ordenes.insert_one(orden)
+        orden_dict["usuario_id"] = ObjectId(orden_dict["usuario_id"])
+        orden_dict["restaurante_id"] = ObjectId(orden_dict["restaurante_id"])
+        if orden_dict["resenia_id"]:
+            orden_dict["resenia_id"] = ObjectId(orden_dict["resenia_id"])
+
+        # Convertir IDs de artículos
+        for item in orden_dict["items"]:
+            item["articulo_id"] = ObjectId(item["articulo_id"])
+
+        res = await db.ordenes.insert_one(orden_dict)
         return {"id": str(res.inserted_id)}
     except Exception as e:
         print(f"Error al crear orden: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al crear la orden")
 
 @app.get("/ordenes/")
 async def listar_ordenes(skip: int = 0, limit: int = 10):
