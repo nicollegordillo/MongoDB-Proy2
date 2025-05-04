@@ -105,26 +105,6 @@ async def listar_ordenes(skip: int = 0, limit: int = 10):
         print(f"Error al listar órdenes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/ordenes/{id}")
-async def obtener_orden(id: str):
-    try:
-        db = get_db()
-        orden = await db.ordenes.find_one({"_id": ObjectId(id)})
-        if not orden:
-            raise HTTPException(status_code=404, detail="Orden no encontrada")
-        orden["_id"] = str(orden["_id"])
-        orden["usuario_id"] = str(orden["usuario_id"])
-        orden["restaurante_id"] = str(orden["restaurante_id"])
-        if orden.get("resenia_id"):
-                    orden["resenia_id"] = str(orden["resenia_id"])
-        for item in orden.get("items", []):
-            if item.get("articulo_id"):
-                item["articulo_id"] = str(item["articulo_id"])
-        return orden
-    except Exception as e:
-        print(f"Error al obtener orden: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    
 @app.get("/ordenes/filtrar")
 async def filtrar_ordenes(
     usuario_id: Optional[str] = None,
@@ -168,6 +148,26 @@ async def filtrar_ordenes(
         return ordenes
     except Exception as e:
         print(f"Error al filtrar órdenes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/ordenes/{id}")
+async def obtener_orden(id: str):
+    try:
+        db = get_db()
+        orden = await db.ordenes.find_one({"_id": ObjectId(id)})
+        if not orden:
+            raise HTTPException(status_code=404, detail="Orden no encontrada")
+        orden["_id"] = str(orden["_id"])
+        orden["usuario_id"] = str(orden["usuario_id"])
+        orden["restaurante_id"] = str(orden["restaurante_id"])
+        if orden.get("resenia_id"):
+                    orden["resenia_id"] = str(orden["resenia_id"])
+        for item in orden.get("items", []):
+            if item.get("articulo_id"):
+                item["articulo_id"] = str(item["articulo_id"])
+        return orden
+    except Exception as e:
+        print(f"Error al obtener orden: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/ordenes/{id}")
