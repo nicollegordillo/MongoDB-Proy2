@@ -380,8 +380,8 @@ async def obtener_restaurante(id: str):
         if not r:
             raise HTTPException(status_code=404, detail="Restaurante no encontrada")
         
-        r["_id"] = str(r["_id"])
-        return r
+        parsed = convert_object_ids(r)
+        return parsed
     except Exception as e:
         print(f"Error al obtener restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
