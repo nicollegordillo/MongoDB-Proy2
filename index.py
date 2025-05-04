@@ -782,5 +782,81 @@ async def eliminar_articulo(id: str):
         return {"eliminados": res.deleted_count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+# ------------------------------
+#  MANEJO DE ARRAYS
+# ------------------------------
+
+@app.patch("/restaurantes/{id}/add-categoria")
+async def agregar_categoria(id: str, categoria: str = Body(...)):
+    db = get_db()
+    res = await db.restaurantes.update_one(
+        {"_id": ObjectId(id)},
+        {"$addToSet": {"categorias": categoria}}
+    )
+    return {"modificados": res.modified_count}
+
+@app.patch("/restaurantes/{id}/remove-categoria")
+async def quitar_categoria(id: str, categoria: str = Body(...)):
+    db = get_db()
+    res = await db.restaurantes.update_one(
+        {"_id": ObjectId(id)},
+        {"$pull": {"categorias": categoria}}
+    )
+    return {"modificados": res.modified_count}
+
+@app.patch("/restaurantes/{id}/add-menu")
+async def agregar_articulo_menu(id: str, articulo_id: str = Body(...)):
+    db = get_db()
+    res = await db.restaurantes.update_one(
+        {"_id": ObjectId(id)},
+        {"$addToSet": {"menu": ObjectId(articulo_id)}}
+    )
+    return {"modificados": res.modified_count}
+
+@app.patch("/restaurantes/{id}/remove-menu")
+async def quitar_articulo_menu(id: str, articulo_id: str = Body(...)):
+    db = get_db()
+    res = await db.restaurantes.update_one(
+        {"_id": ObjectId(id)},
+        {"$pull": {"menu": ObjectId(articulo_id)}}
+    )
+    return {"modificados": res.modified_count}
+
+@app.patch("/restaurantes/{id}/add-resenia")
+async def agregar_resenia_restaurante(id: str, resenia_id: str = Body(...)):
+    db = get_db()
+    res = await db.restaurantes.update_one(
+        {"_id": ObjectId(id)},
+        {"$addToSet": {"resenias": ObjectId(resenia_id)}}
+    )
+    return {"modificados": res.modified_count}
+
+@app.patch("/restaurantes/{id}/remove-resenia")
+async def quitar_resenia_restaurante(id: str, resenia_id: str = Body(...)):
+    db = get_db()
+    res = await db.restaurantes.update_one(
+        {"_id": ObjectId(id)},
+        {"$pull": {"resenias": ObjectId(resenia_id)}}
+    )
+    return {"modificados": res.modified_count}
+
+@app.patch("/articulos/{id}/add-imagen")
+async def agregar_imagen_articulo(id: str, imagen_id: str = Body(...)):
+    db = get_db()
+    res = await db.articulos.update_one(
+        {"_id": ObjectId(id)},
+        {"$push": {"imagenes": ObjectId(imagen_id)}}
+    )
+    return {"modificados": res.modified_count}
+
+@app.patch("/articulos/{id}/remove-imagen")
+async def quitar_imagen_articulo(id: str, imagen_id: str = Body(...)):
+    db = get_db()
+    res = await db.articulos.update_one(
+        {"_id": ObjectId(id)},
+        {"$pull": {"imagenes": ObjectId(imagen_id)}}
+    )
+    return {"modificados": res.modified_count}
 
 
