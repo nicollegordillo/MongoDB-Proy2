@@ -787,76 +787,88 @@ async def eliminar_articulo(id: str):
 #  MANEJO DE ARRAYS
 # ------------------------------
 
+from pydantic import BaseModel
+
+class CategoriaInput(BaseModel):
+    categoria: str
+
+class IDInput(BaseModel):
+    articulo_id: str
+
+class ReseniaInput(BaseModel):
+    resenia_id: str
+
+class ImagenInput(BaseModel):
+    imagen_id: str
+
 @app.patch("/restaurantes/{id}/add-categoria")
-async def agregar_categoria(id: str, categoria: str = Body(...)):
+async def agregar_categoria(id: str, data: CategoriaInput):
     db = get_db()
     res = await db.restaurantes.update_one(
         {"_id": ObjectId(id)},
-        {"$addToSet": {"categorias": categoria}}
+        {"$addToSet": {"categorias": data.categoria}}
     )
     return {"modificados": res.modified_count}
 
 @app.patch("/restaurantes/{id}/remove-categoria")
-async def quitar_categoria(id: str, categoria: str = Body(...)):
+async def quitar_categoria(id: str, data: CategoriaInput):
     db = get_db()
     res = await db.restaurantes.update_one(
         {"_id": ObjectId(id)},
-        {"$pull": {"categorias": categoria}}
+        {"$pull": {"categorias": data.categoria}}
     )
     return {"modificados": res.modified_count}
 
 @app.patch("/restaurantes/{id}/add-menu")
-async def agregar_articulo_menu(id: str, articulo_id: str = Body(...)):
+async def agregar_articulo_menu(id: str, data: IDInput):
     db = get_db()
     res = await db.restaurantes.update_one(
         {"_id": ObjectId(id)},
-        {"$addToSet": {"menu": ObjectId(articulo_id)}}
+        {"$addToSet": {"menu": ObjectId(data.articulo_id)}}
     )
     return {"modificados": res.modified_count}
 
 @app.patch("/restaurantes/{id}/remove-menu")
-async def quitar_articulo_menu(id: str, articulo_id: str = Body(...)):
+async def quitar_articulo_menu(id: str, data: IDInput):
     db = get_db()
     res = await db.restaurantes.update_one(
         {"_id": ObjectId(id)},
-        {"$pull": {"menu": ObjectId(articulo_id)}}
+        {"$pull": {"menu": ObjectId(data.articulo_id)}}
     )
     return {"modificados": res.modified_count}
 
 @app.patch("/restaurantes/{id}/add-resenia")
-async def agregar_resenia_restaurante(id: str, resenia_id: str = Body(...)):
+async def agregar_resenia_restaurante(id: str, data: ReseniaInput):
     db = get_db()
     res = await db.restaurantes.update_one(
         {"_id": ObjectId(id)},
-        {"$addToSet": {"resenias": ObjectId(resenia_id)}}
+        {"$addToSet": {"resenias": ObjectId(data.resenia_id)}}
     )
     return {"modificados": res.modified_count}
 
 @app.patch("/restaurantes/{id}/remove-resenia")
-async def quitar_resenia_restaurante(id: str, resenia_id: str = Body(...)):
+async def quitar_resenia_restaurante(id: str, data: ReseniaInput):
     db = get_db()
     res = await db.restaurantes.update_one(
         {"_id": ObjectId(id)},
-        {"$pull": {"resenias": ObjectId(resenia_id)}}
+        {"$pull": {"resenias": ObjectId(data.resenia_id)}}
     )
     return {"modificados": res.modified_count}
 
 @app.patch("/articulos/{id}/add-imagen")
-async def agregar_imagen_articulo(id: str, imagen_id: str = Body(...)):
+async def agregar_imagen_articulo(id: str, data: ImagenInput):
     db = get_db()
     res = await db.articulos.update_one(
         {"_id": ObjectId(id)},
-        {"$push": {"imagenes": ObjectId(imagen_id)}}
+        {"$push": {"imagenes": ObjectId(data.imagen_id)}}
     )
     return {"modificados": res.modified_count}
 
 @app.patch("/articulos/{id}/remove-imagen")
-async def quitar_imagen_articulo(id: str, imagen_id: str = Body(...)):
+async def quitar_imagen_articulo(id: str, data: ImagenInput):
     db = get_db()
     res = await db.articulos.update_one(
         {"_id": ObjectId(id)},
-        {"$pull": {"imagenes": ObjectId(imagen_id)}}
+        {"$pull": {"imagenes": ObjectId(data.imagen_id)}}
     )
     return {"modificados": res.modified_count}
-
-
