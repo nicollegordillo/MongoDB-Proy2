@@ -7,9 +7,11 @@ from contextlib import asynccontextmanager
 from typing import List, Optional
 from datetime import datetime
 
+from pymongo import InsertOne, UpdateOne
+
 from models.articulo import Articulo
 from models.usuario import Usuario
-from models.restaurantes import RestauranteOptions
+from models.restaurantes import RestauranteOptions, Restaurante
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -672,38 +674,58 @@ async def resenias_por_restaurante(id: str):
 # ----------------------------
 # Bulk Write
 # ----------------------------
-# @app.put("/{collection}/bulk-update")
-# async def bulk_update_stock(updates: list[dict]):
-#     try:
-#         # Prepare bulk operations
-#         operations = []
-#         for update in updates:
-#             try:
-#                 oid = ObjectId(update["id"])
-#             except Exception:
-#                 continue  # or raise HTTPException(400, "Invalid ID")
+@app.post("/bulk-create/{collection}")
+async def bulk_create(collection: str, docs: list[dict]):
+    parsed_docs = []
+    ## Collection is valid
+    if collection not in ["restaurantes","ordenes","articulos","usuarios","resenias"]:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Collection '{collection}' not found"
+        )
+    
+    ## Docs arent Empty:
+    if not docs:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No docs found to be inserted"
+        )
+    
+    ## Docs are correct
+    if collection == "restaurantes":
+        try:
+            parsed_docs = [Restaurante(**d) for d in docs]
+        except ValidationError as e:
+            # e.errors() gives a list of detailed validation issues
+            raise HTTPException(
+                status_code=422,
+                detail=f"Validation failed: {e.errors()}"
+            )
 
-#             operations.append(
-#                 UpdateOne(
-#                     {"_id": oid},
-#                     {"$set": {"stock": update["stock"]}}
-#                 )
-#             )
+    # elif collection == "ordenes":
+    #     pass
+    # elif collection == "resenias":
+    #     pass
+    # elif collection == "usuarios":
+    #     pass
+    # elif collection == "articulos":
+    #     pass
+    else: ## Raise exception
+        raise HTTPException(status_code=500, detail="Bulk update failed")
+        
 
-#         if not operations:
-#             raise HTTPException(status_code=400, detail="No valid updates provided")
-
-#         # Execute bulk write
-#         result = await db.articulos.bulk_write(operations)
-#         return {
-#             "matched": result.matched_count,
-#             "modified": result.modified_count
-#         }
-
-#     except Exception as e:
-#         print(f"Bulk update error: {e}")
-#         raise HTTPException(status_code=500, detail="Bulk update failed")
-
+    # Generating operations:
+    operations = [InsertOne(doc) for doc in parsed_docs]
+    # Executing operations:
+    try:
+        result = await db[collection].bulk_write(operations)
+        return {
+            "inserted_count": result.inserted_count
+        }
+    except Exception as e:
+        print(f"Bulk update error: {e}")
+        raise HTTPException(status_code=500, detail="Bulk update failed")
+    
 # ------------------------------
 # CRUD USUARIOS
 # ------------------------------
@@ -896,7 +918,7 @@ async def eliminar_articulo(id: str):
 #  MANEJO DE ARRAYS
 # ------------------------------
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 class CategoriaInput(BaseModel):
     categoria: str
