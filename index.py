@@ -792,6 +792,51 @@ async def obtener_articulo(id: str):
         return parsed
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.post("/articulos/filtrar")
+async def filtrar_articulos(
+    filtro: dict = Body(...),
+    projection: Optional[List[str]] = Query(None, description="Campos a incluir en la respuesta"),
+    sort: Optional[str] = Query(None, description="Campo:asc|desc"),
+    skip: int = 0,
+    limit: int = 10
+):
+    try:
+        db = get_db()
+
+        # Parse projection
+        if projection:
+            if isinstance(projection, list) and len(projection) == 1 and "," in projection[0]:
+                projection = projection[0].split(",")
+            proj_dict = {f.strip(): 1 for f in projection}
+        else:
+            proj_dict = None
+
+        # Convert restaurante_id a ObjectId si es string válido
+        if "restaurante_id" in filtro and isinstance(filtro["restaurante_id"], str):
+            try:
+                filtro["restaurante_id"] = ObjectId(filtro["restaurante_id"])
+            except:
+                raise HTTPException(status_code=400, detail="restaurante_id no es un ObjectId válido")
+
+        cursor = db.articulos.find(filtro, proj_dict)
+
+        # Ordenamiento
+        if sort:
+            campo, orden = sort.split(":")
+            cursor = cursor.sort(campo, 1 if orden == "asc" else -1)
+
+        # Skip y limit
+        cursor = cursor.skip(skip).limit(limit)
+        articulos = await cursor.to_list(length=limit)
+
+        for a in articulos:
+            a["_id"] = str(a["_id"])
+            if "restaurante_id" in a and isinstance(a["restaurante_id"], ObjectId):
+                a["restaurante_id"] = str(a["restaurante_id"])
+
+        return articulos
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 @app.put("/articulos/{id}")
 async def actualizar_articulo(id: str, data: dict):
     try:
