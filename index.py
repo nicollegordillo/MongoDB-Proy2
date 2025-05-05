@@ -110,6 +110,8 @@ async def filtrar_ordenes(
     usuario_id: Optional[str] = None,
     estado: Optional[str] = None,
     fecha: Optional[str] = None,  # formato ISO: "2025-05-01"
+    campos: Optional[str] = Query(default=None, description="Ej: usuario_id,estado"),
+    ordenar_por: Optional[str] = Query(default=None, description="Ej: fecha,-estado"),
     skip: int = 0,
     limit: int = 10
 ):
@@ -124,20 +126,34 @@ async def filtrar_ordenes(
         if fecha:
             filtro["fecha"] = {"$regex": f"^{fecha}"}
 
-        ordenes_cursor = db.ordenes.find(filtro).skip(skip).limit(limit)
-        ordenes = await ordenes_cursor.to_list(length=100)
+        # Proyección
+        proyeccion = None
+        if campos:
+            proyeccion = {campo.strip(): 1 for campo in campos.split(",")}
+            proyeccion["_id"] = 1  # asegúrate de incluir el _id si se requiere
 
-        # Convertir ObjectIds a string
+        # Ordenamiento
+        ordenamiento = []
+        if ordenar_por:
+            for campo in ordenar_por.split(","):
+                if campo.startswith("-"):
+                    ordenamiento.append((campo[1:], -1))
+                else:
+                    ordenamiento.append((campo, 1))
+
+        cursor = db.ordenes.find(filtro, proyeccion)
+        if ordenamiento:
+            cursor = cursor.sort(ordenamiento)
+        cursor = cursor.skip(skip).limit(limit)
+
+        ordenes = await cursor.to_list(length=100)
         for o in ordenes:
             o["_id"] = str(o["_id"])
-            o["usuario_id"] = str(o["usuario_id"])
-            o["restaurante_id"] = str(o["restaurante_id"])
-            if o.get("resenia_id"):
-                o["resenia_id"] = str(o["resenia_id"])
+            if "usuario_id" in o: o["usuario_id"] = str(o["usuario_id"])
+            if "restaurante_id" in o: o["restaurante_id"] = str(o["restaurante_id"])
+            if o.get("resenia_id"): o["resenia_id"] = str(o["resenia_id"])
             for item in o.get("items", []):
-                if item.get("articulo_id"):
-                    item["articulo_id"] = str(item["articulo_id"])
-
+                if item.get("articulo_id"): item["articulo_id"] = str(item["articulo_id"])
         return ordenes
     except Exception as e:
         print(f"Error al filtrar órdenes: {e}")
@@ -255,29 +271,47 @@ async def listar_resenias():
 @app.get("/resenias/filtrar")
 async def filtrar_resenias(
     restaurante_id: Optional[str] = None,
-    calificacion: Optional[int] = None
+    calificacion: Optional[int] = None,
+    campos: Optional[str] = Query(default=None, description="Ej: calificacion,comentario"),
+    ordenar_por: Optional[str] = Query(default=None, description="Ej: calificacion,-_id"),
+    skip: int = 0,
+    limit: int = 10
 ):
     try:
         db = get_db()
         filtro = {}
 
         if restaurante_id:
-            try:
-                filtro["restaurante_id"] = ObjectId(restaurante_id)
-            except Exception:
-                raise HTTPException(status_code=400, detail="restaurante_id no es un ObjectId válido")
-
+            filtro["restaurante_id"] = ObjectId(restaurante_id)
         if calificacion is not None:
             if calificacion < 1 or calificacion > 5:
                 raise HTTPException(status_code=400, detail="calificación debe estar entre 1 y 5")
             filtro["calificacion"] = calificacion
 
-        resenias = await db.resenias.find(filtro).to_list(100)
+        proyeccion = None
+        if campos:
+            proyeccion = {campo.strip(): 1 for campo in campos.split(",")}
+            proyeccion["_id"] = 1
+
+        ordenamiento = []
+        if ordenar_por:
+            for campo in ordenar_por.split(","):
+                if campo.startswith("-"):
+                    ordenamiento.append((campo[1:], -1))
+                else:
+                    ordenamiento.append((campo, 1))
+
+        cursor = db.resenias.find(filtro, proyeccion)
+        if ordenamiento:
+            cursor = cursor.sort(ordenamiento)
+        cursor = cursor.skip(skip).limit(limit)
+
+        resenias = await cursor.to_list(length=100)
         for r in resenias:
             r["_id"] = str(r["_id"])
-            r["usuario_id"] = str(r["usuario_id"])
-            r["restaurante_id"] = str(r["restaurante_id"])
-            r["orden_id"] = str(r["orden_id"])
+            if "usuario_id" in r: r["usuario_id"] = str(r["usuario_id"])
+            if "restaurante_id" in r: r["restaurante_id"] = str(r["restaurante_id"])
+            if "orden_id" in r: r["orden_id"] = str(r["orden_id"])
         return resenias
     except Exception as e:
         print(f"Error al filtrar reseñas: {e}")
