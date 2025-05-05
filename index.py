@@ -712,7 +712,7 @@ async def filtrar_usuarios(
 ):
     try:
         db = get_db()
-        proj_dict = {f: 1 for f in projection} if projection else None
+        proj_dict = {f.strip(): 1 for f in projection[0].split(",")} if projection else None
 
         cursor = db.usuarios.find(filtro, proj_dict)
 
