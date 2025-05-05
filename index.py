@@ -4,7 +4,7 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 
 from models.articulo import Articulo
@@ -702,37 +702,23 @@ async def obtener_usuario(id: str):
         return u
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-@app.get("/usuarios/filtrar")
+@app.post("/usuarios/filtrar")
 async def filtrar_usuarios(
-    tipo: Optional[str] = None,
-    correo: Optional[str] = None,
-    nombre: Optional[str] = None,
-    projection: Optional[str] = Query(None, description="Campos a incluir, separados por coma"),
-    sort: Optional[str] = Query(None, description="Campo y orden. Ej: nombre:asc"),
+    filtro: dict = Body(...),
+    projection: Optional[List[str]] = Query(None, description="Campos a incluir en la respuesta"),
+    sort: Optional[str] = Query(None, description="Campo:asc|desc"),
     skip: int = 0,
     limit: int = 10
 ):
     try:
         db = get_db()
-        filtro = {}
-
-        if tipo: filtro["tipo"] = tipo
-        if correo: filtro["correo"] = correo
-        if nombre: filtro["nombre"] = {"$regex": nombre, "$options": "i"}
-
-        proj_dict = None
-        if projection:
-            proj_dict = {field.strip(): 1 for field in projection.split(",")}
-
-        sort_tuple = None
-        if sort:
-            campo, orden = sort.split(":")
-            sort_tuple = (campo, 1 if orden == "asc" else -1)
+        proj_dict = {f: 1 for f in projection} if projection else None
 
         cursor = db.usuarios.find(filtro, proj_dict)
 
-        if sort_tuple:
-            cursor = cursor.sort([sort_tuple])
+        if sort:
+            campo, orden = sort.split(":")
+            cursor = cursor.sort(campo, 1 if orden == "asc" else -1)
 
         cursor = cursor.skip(skip).limit(limit)
         usuarios = await cursor.to_list(length=limit)
