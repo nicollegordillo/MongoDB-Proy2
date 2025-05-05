@@ -1,5 +1,5 @@
 import os
-from fastapi import Body, FastAPI, HTTPException, UploadFile
+from fastapi import Body, FastAPI, HTTPException, UploadFile, Query
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
@@ -666,6 +666,7 @@ async def resenias_por_restaurante(id: str):
 #     except Exception as e:
 #         print(f"Bulk update error: {e}")
 #         raise HTTPException(status_code=500, detail="Bulk update failed")
+
 # ------------------------------
 # CRUD USUARIOS
 # ------------------------------
@@ -691,7 +692,6 @@ async def listar_usuarios(tipo: str = None, correo: str = None, nombre: str = No
         return usuarios
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/usuarios/{id}")
 async def obtener_usuario(id: str):
     try:
@@ -700,6 +700,47 @@ async def obtener_usuario(id: str):
         if not u: raise HTTPException(status_code=404, detail="Usuario no encontrado")
         u["_id"] = str(u["_id"])
         return u
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/usuarios/filtrar")
+async def filtrar_usuarios(
+    tipo: Optional[str] = None,
+    correo: Optional[str] = None,
+    nombre: Optional[str] = None,
+    projection: Optional[str] = Query(None, description="Campos a incluir, separados por coma"),
+    sort: Optional[str] = Query(None, description="Campo y orden. Ej: nombre:asc"),
+    skip: int = 0,
+    limit: int = 10
+):
+    try:
+        db = get_db()
+        filtro = {}
+
+        if tipo: filtro["tipo"] = tipo
+        if correo: filtro["correo"] = correo
+        if nombre: filtro["nombre"] = {"$regex": nombre, "$options": "i"}
+
+        proj_dict = None
+        if projection:
+            proj_dict = {field.strip(): 1 for field in projection.split(",")}
+
+        sort_tuple = None
+        if sort:
+            campo, orden = sort.split(":")
+            sort_tuple = (campo, 1 if orden == "asc" else -1)
+
+        cursor = db.usuarios.find(filtro, proj_dict)
+
+        if sort_tuple:
+            cursor = cursor.sort([sort_tuple])
+
+        cursor = cursor.skip(skip).limit(limit)
+        usuarios = await cursor.to_list(length=limit)
+
+        for u in usuarios:
+            u["_id"] = str(u["_id"])
+
+        return usuarios
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 @app.put("/usuarios/{id}")
