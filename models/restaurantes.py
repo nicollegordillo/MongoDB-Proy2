@@ -13,7 +13,6 @@ class Direccion(BaseModel):
     coordenadas: Coordenadas
 
 class Restaurante(BaseModel):
-    restaurante_id: str
     nombre: str
     direccion: Direccion
     categorias: List[str]
