@@ -105,24 +105,33 @@ async def aggregate_verify_index_use(collection, pipeline):
         raise HTTPException(status_code=400, detail="Aggregation pipeline does not implement index use")
 ## For normal
 
-async def ensure_query_uses_index(collection, filter_query: dict):
-    pymongo_collection = collection.delegate  # Access PyMongo layer
-    # Run explain in a background thread
-    explanation = await to_thread(pymongo_collection.find(filter_query).explain)
-
-    def contains_ixscan(plan):
+def uses_index(winning_plan):
+    def search(plan):
         if isinstance(plan, dict):
-            if plan.get("stage") == "IXSCAN":
+            stage = plan.get("stage")
+            if stage == "COLLSCAN":
+                return False
+            if stage == "IXSCAN":
                 return True
             for value in plan.values():
-                if isinstance(value, (dict, list)) and contains_ixscan(value):
-                    return True
+                if isinstance(value, (dict, list)):
+                    result = search(value)
+                    if result is not None:
+                        return result
         elif isinstance(plan, list):
-            return any(contains_ixscan(p) for p in plan)
-        return False
+            for item in plan:
+                result = search(item)
+                if result is not None:
+                    return result
+        return None  # We didn't find enough info
+    result = search(winning_plan)
+    return result is True
 
+async def ensure_query_uses_index(collection, filter_query: dict):
+    pymongo_collection = collection.delegate
+    explanation = await to_thread(pymongo_collection.find(filter_query).explain)
     winning_plan = explanation.get("queryPlanner", {}).get("winningPlan", {})
-    return contains_ixscan(winning_plan)
+    return uses_index(winning_plan)
 
 # ------------------------------
 # CRUD ÓRDENES
