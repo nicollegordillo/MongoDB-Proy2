@@ -11,6 +11,8 @@ from pymongo import InsertOne, UpdateOne
 
 from models.articulo import Articulo
 from models.usuario import Usuario
+from models.orden import Orden
+from models.resenia import Resenia
 from models.restaurantes import RestauranteOptions, Restaurante
 
 @asynccontextmanager
@@ -676,7 +678,7 @@ async def resenias_por_restaurante(id: str):
 # ----------------------------
 @app.post("/bulk-create/{collection}")
 async def bulk_create(collection: str, docs: list[dict]):
-    parsed_docs = []
+
     ## Collection is valid
     if collection not in ["restaurantes","ordenes","articulos","usuarios","resenias"]:
         raise HTTPException(
@@ -694,28 +696,55 @@ async def bulk_create(collection: str, docs: list[dict]):
     ## Docs are correct
     if collection == "restaurantes":
         try:
-            parsed_docs = [Restaurante(**d) for d in docs]
+            [Restaurante(**d) for d in docs]
         except ValidationError as e:
             # e.errors() gives a list of detailed validation issues
             raise HTTPException(
                 status_code=422,
                 detail=f"Validation failed: {e.errors()}"
             )
-
-    # elif collection == "ordenes":
-    #     pass
-    # elif collection == "resenias":
-    #     pass
-    # elif collection == "usuarios":
-    #     pass
-    # elif collection == "articulos":
-    #     pass
+    elif collection == "ordenes":
+        try:
+            [Orden(**d) for d in docs]
+        except ValidationError as e:
+            # e.errors() gives a list of detailed validation issues
+            raise HTTPException(
+                status_code=422,
+                detail=f"Validation failed: {e.errors()}"
+            )
+    elif collection == "resenias":
+        try:
+            [Resenia(**d) for d in docs]
+        except ValidationError as e:
+            # e.errors() gives a list of detailed validation issues
+            raise HTTPException(
+                status_code=422,
+                detail=f"Validation failed: {e.errors()}"
+            )
+    elif collection == "usuarios":
+        try:
+            [Usuario(**d) for d in docs]
+        except ValidationError as e:
+            # e.errors() gives a list of detailed validation issues
+            raise HTTPException(
+                status_code=422,
+                detail=f"Validation failed: {e.errors()}"
+            )
+    elif collection == "articulos":
+        try:
+            [Articulo(**d) for d in docs]
+        except ValidationError as e:
+            # e.errors() gives a list of detailed validation issues
+            raise HTTPException(
+                status_code=422,
+                detail=f"Validation failed: {e.errors()}"
+            )
     else: ## Raise exception
-        raise HTTPException(status_code=500, detail="Bulk update failed")
+        raise HTTPException(status_code=500, detail=f"Docs failed to be parsed to {collection}")
         
 
     # Generating operations:
-    operations = [InsertOne(doc) for doc in parsed_docs]
+    operations = [InsertOne(doc) for doc in docs]
     # Executing operations:
     try:
         result = await db[collection].bulk_write(operations)
