@@ -116,7 +116,9 @@ async def aggregate_verify_index_use(collection, pipeline):
     total_docs_examined = execution_stats.get("totalDocsExamined", 0)
 
     # Check index usage before $lookup
-    input_stage = winning_plan.get("inputStage", {})
+    input_stage = winning_plan.get("$lookup", {})
+    lookup_keys = winning_plan.get("totalKeysExamined", 0)
+    total_keys_examined = total_keys_examined + lookup_keys
     if input_stage.get("stage") == "COLLSCAN" and total_keys_examined == 0:
         raise HTTPException(status_code=400, detail="Input collection scan (COLLSCAN) - No indexes used")
 
@@ -124,7 +126,7 @@ async def aggregate_verify_index_use(collection, pipeline):
     if not contains_ixscan(winning_plan) and total_keys_examined == 0:
         raise HTTPException(status_code=400, detail=f"No indexes used in this query\n {execution_stats}")
 
-    if "stage" in winning_plan and winning_plan["stage"] == "LOOKUP":
+    if "stage" in winning_plan and winning_plan["stage"] == "$lookup":
         # Look for potential index usage in the lookup stage
         lookup_stage = winning_plan.get("inputStage", {}).get("inputStage", {})
         if lookup_stage and lookup_stage.get("stage") == "COLLSCAN":
@@ -774,10 +776,13 @@ async def top_platos():
         raise HTTPException(status_code=500, detail=str(e))
 
 # Gastos de clientes (gasto total por cada cliente)
-@app.post("/agg/user-spent/")
-async def gastos_usuario():
+@app.post("/agg/user-spent/{id}")
+async def gastos_usuario(id: str):
     try:
         pipeline = [
+            {"$match": {
+                "usuario_id": ObjectId(id)
+            }},
             {"$group": {
                 "_id": "$usuario_id",
                 "spent": {"$sum": "$total"}
