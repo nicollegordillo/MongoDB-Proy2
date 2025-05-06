@@ -124,7 +124,7 @@ async def aggregate_verify_index_use(collection, pipeline):
 
     # Check if indexes were used in the winning plan
     if not contains_ixscan(winning_plan) and total_keys_examined == 0:
-        raise HTTPException(status_code=400, detail=f"No indexes used in this query\n {execution_stats}         {pipeline}")
+        raise HTTPException(status_code=400, detail=f"No indexes used in this query\n {explanation}         {pipeline}")
 
     if "stage" in winning_plan and winning_plan["stage"] == "$lookup":
         # Look for potential index usage in the lookup stage
