@@ -541,10 +541,9 @@ async def simple_agg(
     # --- Error handling
     # Collection
     if body.collection not in ["restaurantes","ordenes","resenias","articulos","usuarios"]:
-        raise HTTPException(status_code=500, detail=f"Collection '{body.collection}' doesnt exist in cluster")
+        raise HTTPException(status_code=400, detail=f"Collection '{body.collection}' doesnt exist in cluster")
     
     # operations
-    
     for key, value in body.grouping:
         if not isinstance(key, str):
             raise HTTPException(status_code=400, detail=f"In grouping, key must be a string, recieved {key}")
@@ -559,9 +558,7 @@ async def simple_agg(
         pipeline.append({
             "$group": {
                 "_id": body.groupBy,
-                "rslt": {
-                    grouping_query
-                }
+                "rslt": grouping_query
             }
         })
 
