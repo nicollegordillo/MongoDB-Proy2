@@ -71,17 +71,17 @@ def get_db():
 # ------------------------------
 
 async def aggregate_verify_index_use(collection, pipeline):
-    pymongo_collection = collection.database.get_collection(collection.name)
-    raw_cursor = pymongo_collection.aggregate(pipeline)
-    explanation = await raw_cursor.explain()
+    pymongo_collection = collection.delegate
+    
+    from asyncio import to_thread
+    explanation = await to_thread(pymongo_collection.aggregate(pipeline).explain)
 
     def contains_ixscan(plan):
         """Recursively check for IXSCAN stage (index use)."""
         if isinstance(plan, dict):
-            stage = plan.get("stage")
-            if stage == "IXSCAN":
+            if plan.get("stage") == "IXSCAN":
                 return True
-            for key, value in plan.items():
+            for value in plan.values():
                 if isinstance(value, (dict, list)) and contains_ixscan(value):
                     return True
         elif isinstance(plan, list):
