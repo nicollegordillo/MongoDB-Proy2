@@ -124,7 +124,7 @@ async def aggregate_verify_index_use(collection, pipeline):
 
     # Check if indexes were used in the winning plan
     if not contains_ixscan(winning_plan) and total_keys_examined == 0:
-        raise HTTPException(status_code=400, detail=f"No indexes used in this query\n {execution_stats}")
+        raise HTTPException(status_code=400, detail=f"No indexes used in this query\n {execution_stats}         {pipeline}")
 
     if "stage" in winning_plan and winning_plan["stage"] == "$lookup":
         # Look for potential index usage in the lookup stage
@@ -636,8 +636,7 @@ async def actualizar_restaurante(id: str, data: dict):
         await ensure_query_uses_index(db.restaurantes, filter_query)
 
         res = await db.restaurantes.update_one(filter_query, {"$set": data})
-        if res.matched_count == 0:
-            raise HTTPException(status_code=404, detail="Restaurante no encontrado")
+        return {"modificados": res.modified_count}
     except Exception as e:
         print(f"Error al actualizar restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
