@@ -710,7 +710,7 @@ async def simple_agg(
             grouping_query[str(key + "_"+value)] = {f"${value}": f"${key}"}
         pipeline.append({
             "$group": {
-                "_id": body.groupBy,
+                "_id": f"${body.groupBy}",
                 **grouping_query
             }
         })
