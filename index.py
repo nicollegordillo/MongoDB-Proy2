@@ -38,6 +38,16 @@ async def lifespan(app: FastAPI):
         await db.restaurantes.create_index([("categorias",1)])
         await db.restaurantes.create_index([("calificacionPromedio",-1)])
 
+        # Indices para usuario
+        await db.usuarios.create_index([("correo",-1)])
+        await db.usuarios.create_index([("nombre",1), ("telefono", 1)])
+        await db.usuarios.create_index([("nombre",-1)])
+        
+        # Indices para articulos
+        await db.articulos.create_index([("restaurante_id",1),("nombre",1)])
+        await db.articulos.create_index([("precio",1)])
+        await db.articulos.create_index([("categorias",1)])
+
         print(" Índices creados correctamente.")
     except Exception as e:
         print(f" Error creando índices: {e}")
@@ -455,7 +465,7 @@ async def listar_restaurantes():
         db = get_db()
         uses_index = await ensure_query_uses_index(db.restaurantes, {})
         if not uses_index:
-             raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=400, detail="Index use is required for all queries")
         
         restaurantes = await db.restaurantes.find().to_list(100)
         for r in restaurantes:
@@ -473,7 +483,7 @@ async def obtener_restaurante(id: str):
         
         uses_index = await ensure_query_uses_index(db.restaurantes, filter_query)
         if not uses_index:
-             raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=400, detail="Index use is required for all queries")
         
         r = await db.restaurantes.find_one(filter_query)
         if not r:
@@ -561,7 +571,7 @@ async def eliminar_restaurante(id: str):
         
         uses_index = await ensure_query_uses_index(db.restaurantes, filter_query)
         if not uses_index:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=400, detail="Index use is required for all queries")
         
         r = await db.restaurantes.delete_one(filter_query)
         return {"eliminados": r.deleted_count}
@@ -577,7 +587,7 @@ async def actualizar_restaurante(id: str, data: dict):
         
         uses_index = await ensure_query_uses_index(db.restaurantes, filter_query)
         if not uses_index:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=400, detail="Index use is required for all queries")
         
         res = await db.restaurantes.update_one(filter_query)
         if res.matched_count == 0:
@@ -600,7 +610,6 @@ def convert_object_ids(obj):
         return str(obj)
     else:
         return obj
-
 
 # Simple aggregations
 @app.post("/agg/simple/")
@@ -676,7 +685,7 @@ async def top_restaurantes():
 async def top_platos():
     try:
         pipeline = [
-                        {"$unwind": "$items"},
+            {"$unwind": "$items"},
             {"$group": {
                 "_id": "$items.articulo_id",
                 "total_sales": {"$sum": "$items.cantidad"}
