@@ -554,14 +554,13 @@ async def simple_agg(
         # Grouping/Operation
         grouping_query = {}
         for key, value in body.grouping:
-            grouping_query[str(key + "_"+value)] = {f"${value}": key}
+            grouping_query[str(key + "_"+value)] = {f"${value}": f"${key}"}
         pipeline.append({
             "$group": {
                 "_id": body.groupBy,
                 "rslt": grouping_query
             }
         })
-
         # Skip
         if body.skip:
             pipeline.append({"$skip": body.skip})
