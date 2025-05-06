@@ -91,7 +91,7 @@ async def aggregate_verify_index_use(collection, pipeline):
     def contains_ixscan(plan):
         """Recursively check for IXSCAN stage (index use)."""
         if isinstance(plan, dict):
-            if plan.get("stage") == "IXSCAN":
+            if plan.get("stage") in ("IXSCAN", "EXPRESS_IXSCAN"):
                 return True
             for value in plan.values():
                 if isinstance(value, (dict, list)) and contains_ixscan(value):
@@ -103,15 +103,15 @@ async def aggregate_verify_index_use(collection, pipeline):
     winning_plan = explanation.get("queryPlanner", {}).get("winningPlan", {})
     if not contains_ixscan(winning_plan):
         raise HTTPException(status_code=400, detail="Aggregation pipeline does not implement index use")
-## For normal
 
+## For normal
 def uses_index(winning_plan):
     def search(plan):
         if isinstance(plan, dict):
             stage = plan.get("stage")
             if stage == "COLLSCAN":
                 return False
-            if stage == "IXSCAN":
+            if stage in ("IXSCAN", "EXPRESS_IXSCAN"):
                 return True
             for value in plan.values():
                 if isinstance(value, (dict, list)):
