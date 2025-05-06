@@ -29,4 +29,5 @@ class RestauranteOptions(BaseModel):
     skip: Optional[int] = None
     categories: Optional[List[str]] = None
     project: dict
+
     

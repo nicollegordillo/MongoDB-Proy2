@@ -14,7 +14,7 @@ from models.usuario import Usuario
 from models.orden import Orden
 from models.resenia import Resenia
 from models.restaurantes import RestauranteOptions, Restaurante
-
+from models.aggregate import SimpleAggregate
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Crear índices al iniciar
@@ -536,40 +536,29 @@ def convert_object_ids(obj):
 # Simple aggregations
 @app.post("/agg/simple/")
 async def simple_agg(
-    collection: str,
-    groupBy: str,
-    grouping: dict,
-    limit: int,
-    skip: int
-):
+    body: SimpleAggregate = Body(...)
+    ):
     # --- Error handling
     # Collection
-    if not collection:
-        raise HTTPException(status_code=500, detail="Missing collection, required field")
-    if collection not in ["restaurantes","ordenes","resenias","articulos","usuarios"]:
-        raise HTTPException(status_code=500, detail=f"Collection '{collection}' doesnt exist in cluster")
+    if body.collection not in ["restaurantes","ordenes","resenias","articulos","usuarios"]:
+        raise HTTPException(status_code=500, detail=f"Collection '{body.collection}' doesnt exist in cluster")
     
-    # Grouping Factor
-    if not groupBy:
-        raise HTTPException(status_code=500, detail="Missing operations")
-
     # operations
-    if not grouping:
-        raise HTTPException(status_code=500, detail="Grouping is a required field")
-    for key, value in grouping:
+    
+    for key, value in body.grouping:
         if not isinstance(key, str):
-            raise HTTPException(status_code=500, detail=f"In grouping, key must be a string, recieved {key}")
+            raise HTTPException(status_code=400, detail=f"In grouping, key must be a string, recieved {key}")
         if not isinstance(value, str) and value in ["sum","count","avg"]:
-            raise HTTPException(status_code=500, detail=f"Invalid aggregate operations, recieved {value} but expected 'sum', 'avg' or 'count'")
+            raise HTTPException(status_code=400, detail=f"Invalid aggregate operations, recieved {value} but expected 'sum', 'avg' or 'count'")
     try:
         pipeline = []
         # Grouping/Operation
         grouping_query = {}
-        for key, value in grouping:
+        for key, value in body.grouping:
             grouping_query[str(key + "_"+value)] = {f"${value}": key}
         pipeline.append({
             "$group": {
-                "_id": groupBy,
+                "_id": body.groupBy,
                 "rslt": {
                     grouping_query
                 }
@@ -577,14 +566,14 @@ async def simple_agg(
         })
 
         # Skip
-        if skip:
-            pipeline.append({"$skip": skip})
-        if limit:
-            pipeline.append({"$limit": limit})
+        if body.skip:
+            pipeline.append({"$skip": body.skip})
+        if body.limit:
+            pipeline.append({"$limit": body.limit})
             
         # Execution
         db = get_db()
-        cursor = db[collection].aggregate(pipeline)
+        cursor = db[body.collection].aggregate(pipeline)
         res = await cursor.to_list() 
         parsed = convert_object_ids(res)
         return parsed
