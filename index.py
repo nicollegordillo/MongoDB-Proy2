@@ -534,7 +534,7 @@ def convert_object_ids(obj):
 
 
 # Simple aggregations
-@app.post("agg/simple/")
+@app.post("/agg/simple/")
 async def simple_agg(
     collection: str,
     groupBy: str,
@@ -577,8 +577,10 @@ async def simple_agg(
         })
 
         # Skip
-        pipeline.append({"$skip": skip})
-        pipeline.append({"$limit": limit})
+        if skip:
+            pipeline.append({"$skip": skip})
+        if limit:
+            pipeline.append({"$limit": limit})
             
         # Execution
         db = get_db()
