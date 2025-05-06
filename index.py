@@ -757,6 +757,20 @@ async def bulk_create(collection: str, docs: list[dict]):
         raise HTTPException(status_code=500, detail=f"Bulk update failed: {e}")
     
 # ------------------------------
+# BULK DELETE
+# ------------------------------
+@app.post("/bulk-delete/{collection}")
+async def bulk_delete(collection: str, ids: List[str] = Body(...)):
+    if collection not in ["restaurantes", "ordenes", "articulos", "usuarios", "resenias"]:
+        raise HTTPException(status_code=422, detail=f"Colección '{collection}' no permitida")
+    try:
+        db = get_db()
+        object_ids = [ObjectId(i) for i in ids]
+        res = await db[collection].delete_many({"_id": {"$in": object_ids}})
+        return {"eliminados": res.deleted_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+# ------------------------------
 # CRUD USUARIOS
 # ------------------------------
 
