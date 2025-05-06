@@ -67,6 +67,27 @@ def get_db():
     return client["restaurante_db"]
 
 # ------------------------------
+# INDEX VERIFICATION
+# ------------------------------
+
+async def ensure_index_usage(cursor):
+    explanation = await cursor.explain()
+    winning_plan = explanation.get("queryPlanner", {}).get("winningPlan", {})
+    def contains_ixscan(plan):
+        """Recursively check if any stage uses an index."""
+        stage = plan.get("stage")
+        if stage == "IXSCAN":
+            return True
+        if "inputStage" in plan:
+            return contains_ixscan(plan["inputStage"])
+        if "inputStages" in plan:
+            return any(contains_ixscan(p) for p in plan["inputStages"])
+        if "shards" in plan:  # in case of sharded clusters
+            return any(contains_ixscan(s["winningPlan"]) for s in plan["shards"].values())
+        return False
+    if not contains_ixscan(winning_plan):
+        raise HTTPException(status_code=400, detail="Query does not implement index use")
+# ------------------------------
 # CRUD ÓRDENES
 # ------------------------------
 
@@ -544,7 +565,7 @@ async def simple_agg(
         raise HTTPException(status_code=400, detail=f"Collection '{body.collection}' doesnt exist in cluster")
     
     # operations
-    for key, value in body.grouping:
+    for key, value in body.grouping.items():
         if not isinstance(key, str):
             raise HTTPException(status_code=400, detail=f"In grouping, key must be a string, recieved {key}")
         if not isinstance(value, str) and value in ["sum","count","avg"]:
@@ -553,7 +574,7 @@ async def simple_agg(
         pipeline = []
         # Grouping/Operation
         grouping_query = {}
-        for key, value in body.grouping:
+        for key, value in body.grouping.items():
             grouping_query[str(key + "_"+value)] = {f"${value}": f"${key}"}
         pipeline.append({
             "$group": {
@@ -570,6 +591,7 @@ async def simple_agg(
         # Execution
         db = get_db()
         cursor = db[body.collection].aggregate(pipeline)
+        await ensure_index_usage(cursor)
         res = await cursor.to_list() 
         parsed = convert_object_ids(res)
         return parsed
@@ -634,7 +656,7 @@ async def top_platos():
                 "articulo": 1
             }}
         ])
-        
+        await ensure_index_usage(cursor)
         res = await cursor.to_list() 
         parsed = convert_object_ids(res)
         return parsed
@@ -654,7 +676,7 @@ async def gastos_usuario():
                 "spent": {"$sum": "$total"}
             }}
         ])
-        
+        await ensure_index_usage(cursor)
         res = await cursor.to_list() 
         parsed = convert_object_ids(res)
         return parsed
@@ -717,7 +739,7 @@ async def resenias_por_restaurante(id: str):
                 "fecha": "$fecha"
             }}
         ])
-        
+        await ensure_index_usage(cursor)
         res = await cursor.to_list() 
         parsed = convert_object_ids(res)
         return parsed
