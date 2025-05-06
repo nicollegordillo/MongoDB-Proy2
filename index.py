@@ -6,7 +6,7 @@ from bson import ObjectId
 from contextlib import asynccontextmanager
 from typing import List, Optional
 from datetime import datetime
-
+from asyncio import to_thread
 from pymongo import InsertOne, UpdateOne
 
 from models.articulo import Articulo
@@ -69,11 +69,11 @@ def get_db():
 # ------------------------------
 # INDEX VERIFICATION
 # ------------------------------
-
+## For aggregates
 async def aggregate_verify_index_use(collection, pipeline):
     pymongo_collection = collection.delegate
     
-    from asyncio import to_thread
+    
     explanation = await to_thread(
         pymongo_collection.database.command,
         {"explain": {"aggregate": collection.name, "pipeline": pipeline, "cursor": {}}}
@@ -93,6 +93,27 @@ async def aggregate_verify_index_use(collection, pipeline):
     winning_plan = explanation.get("queryPlanner", {}).get("winningPlan", {})
     if not contains_ixscan(winning_plan):
         raise HTTPException(status_code=400, detail="Aggregation pipeline does not implement index use")
+## For normal
+
+async def ensure_query_uses_index(collection, filter_query: dict):
+    pymongo_collection = collection.delegate  # Access PyMongo layer
+    # Run explain in a background thread
+    explanation = await to_thread(pymongo_collection.find(filter_query).explain)
+
+    def contains_ixscan(plan):
+        if isinstance(plan, dict):
+            if plan.get("stage") == "IXSCAN":
+                return True
+            for value in plan.values():
+                if isinstance(value, (dict, list)) and contains_ixscan(value):
+                    return True
+        elif isinstance(plan, list):
+            return any(contains_ixscan(p) for p in plan)
+        return False
+
+    winning_plan = explanation.get("queryPlanner", {}).get("winningPlan", {})
+    return contains_ixscan(winning_plan)
+
 # ------------------------------
 # CRUD ÓRDENES
 # ------------------------------
@@ -432,6 +453,10 @@ async def obtener_imagen(id: str):
 async def listar_restaurantes():
     try:
         db = get_db()
+        uses_index = await ensure_query_uses_index(db.restaurantes, {})
+        if not uses_index:
+             raise HTTPException(status_code=500, detail=str(e))
+        
         restaurantes = await db.restaurantes.find().to_list(100)
         for r in restaurantes:
             r["_id"] = str(r["_id"])
@@ -444,7 +469,13 @@ async def listar_restaurantes():
 async def obtener_restaurante(id: str):
     try:
         db = get_db()
-        r = await db.restaurantes.find_one({"_id": ObjectId(id)})
+        filter_query = {"_id": ObjectId(id)}
+        
+        uses_index = await ensure_query_uses_index(db.restaurantes, filter_query)
+        if not uses_index:
+             raise HTTPException(status_code=500, detail=str(e))
+        
+        r = await db.restaurantes.find_one(filter_query)
         if not r:
             raise HTTPException(status_code=404, detail="Restaurante no encontrada")
         
@@ -517,17 +548,22 @@ async def crear_restaurante(rest: dict):
     try:
         db = get_db()
         res = await db.restaurantes.insert_one(rest)
-        
         return {"id": str(res.inserted_id)}
     except Exception as e:
-        print(f"Error al crear reseña: {e}")
+        print(f"Error al crear restaurante: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/restaurantes/{id}")
 async def eliminar_restaurante(id: str):
     try:        
         db = get_db()
-        r = await db.restaurantes.delete_one({"_id": ObjectId(id)})
+        filter_query = {"_id": ObjectId(id)}
+        
+        uses_index = await ensure_query_uses_index(db.restaurantes, filter_query)
+        if not uses_index:
+            raise HTTPException(status_code=500, detail=str(e))
+        
+        r = await db.restaurantes.delete_one(filter_query)
         return {"eliminados": r.deleted_count}
     except Exception as e:
         print(f"Error al eliminar restaurante: {e}")
@@ -537,7 +573,13 @@ async def eliminar_restaurante(id: str):
 async def actualizar_restaurante(id: str, data: dict):
     try:
         db = get_db()
-        res = await db.restaurantes.update_one({"_id": ObjectId(id)}, {"$set": data})
+        filter_query = {"_id": ObjectId(id)}
+        
+        uses_index = await ensure_query_uses_index(db.restaurantes, filter_query)
+        if not uses_index:
+            raise HTTPException(status_code=500, detail=str(e))
+        
+        res = await db.restaurantes.update_one(filter_query)
         if res.matched_count == 0:
             raise HTTPException(status_code=404, detail="Restaurante no encontrado")
     except Exception as e:
@@ -585,7 +627,7 @@ async def simple_agg(
         pipeline.append({
             "$group": {
                 "_id": body.groupBy,
-                "rslt": grouping_query
+                **grouping_query
             }
         })
         # Skip
@@ -705,7 +747,7 @@ async def gastos_usuario():
 async def resenias_por_restaurante(id: str):
     try:
         pipeline = [
-                        {"$match": { 
+            {"$match": { 
                 "restaurante_id": ObjectId(id) 
             }},
             {"$lookup": {
