@@ -79,6 +79,44 @@ def get_db():
 # ------------------------------
 # INDEX VERIFICATION
 # ------------------------------
+## For aggregates with lookup
+async def aggregate_lookup_verify_index_use(collection, pipeline):
+    pymongo_collection = collection.delegate
+
+    # Run explain with executionStats to get detailed info
+    explanation = await to_thread(
+        pymongo_collection.database.command,
+        {
+            "explain": {
+                "aggregate": collection.name,
+                "pipeline": pipeline,
+                "cursor": {}
+            },
+            "verbosity": "executionStats"  # required for detailed metrics
+        }
+    )
+    
+    def extract_lookup_index_use(stages):
+        for stage in stages:
+            if "$lookup" in stage:
+                lookup = stage["$lookup"]
+                stats = lookup.get("executionStats", {})
+                keys_examined = stats.get("totalKeysExamined", 0)
+                docs_examined = stats.get("totalDocsExamined", 0)
+
+                if keys_examined == 0 and docs_examined > 0:
+                    raise HTTPException(status_code=400, detail="Lookup did not use index on foreign collection")
+
+                # Optional: Add efficiency check
+                if keys_examined > 0 and docs_examined / keys_examined > 10:
+                    raise HTTPException(status_code=400, detail="Inefficient index use in $lookup stage")
+
+                # Check nested stages inside the lookup pipeline
+                if "subPipeline" in lookup:
+                    extract_lookup_index_use(lookup["subPipeline"])
+    stages = explanation.get("stages", [])
+    extract_lookup_index_use(stages)
+
 ## For aggregates
 async def aggregate_verify_index_use(collection, pipeline):
     pymongo_collection = collection.delegate
@@ -115,13 +153,6 @@ async def aggregate_verify_index_use(collection, pipeline):
     total_keys_examined = execution_stats.get("totalKeysExamined", 0)
     total_docs_examined = execution_stats.get("totalDocsExamined", 0)
 
-    # Check index usage before $lookup
-    input_stage = winning_plan.get("$lookup", {})
-    lookup_keys = winning_plan.get("totalKeysExamined", 0)
-    total_keys_examined = total_keys_examined + lookup_keys
-    if input_stage.get("stage") == "COLLSCAN" and total_keys_examined == 0:
-        raise HTTPException(status_code=400, detail="Input collection scan (COLLSCAN) - No indexes used")
-
     # Check if indexes were used in the winning plan
     if not contains_ixscan(winning_plan) and total_keys_examined == 0:
         raise HTTPException(status_code=400, detail=f"No indexes used in this query\n {explanation}         {pipeline}")
@@ -138,7 +169,6 @@ async def aggregate_verify_index_use(collection, pipeline):
         if ratio > 10:  # You can tweak this threshold
             raise HTTPException(status_code=400, detail=f"High doc/key examined ratio, bad index use {explanation}")
 
-    # Everything looks good, no issues
 
 ## For normal
 def uses_index(winning_plan):
@@ -749,9 +779,7 @@ async def top_platos():
                 },
                 "pipeline": [
                     {"$match": {
-                        "$expr": {
-                            "$eq": ["$_id", "$$articulo_id"]
-                        }
+                        "$_id": "$$articulo_id"
                     }}
                 ],
                 "as": "articulo"
@@ -763,7 +791,7 @@ async def top_platos():
             }}
         ]
         db = get_db()
-        await aggregate_verify_index_use(db.ordenes, pipeline)
+        await aggregate_lookup_verify_index_use(db.ordenes, pipeline)
         
         cursor = db.ordenes.aggregate(pipeline)
         res = await cursor.to_list() 
@@ -814,9 +842,7 @@ async def resenias_por_restaurante(id: str):
                 },
                 "pipeline": [
                     {"$match": {
-                        "$expr": {
-                            "$eq": ["$_id", "$$usuario_id"]
-                        }
+                        "$_id", "$$usuario_id"
                     }},
                     {"$project": {
                         "nombre": "$nombre",
@@ -832,9 +858,7 @@ async def resenias_por_restaurante(id: str):
                 },
                 "pipeline": [
                     {"$match": {
-                        "$expr": {
-                            "$eq": ["$_id", "$$orden_id"]
-                        }
+                        "$_id", "$$orden_id"
                     }},
                     {"$project": {
                         "estado": "$estado",
@@ -853,7 +877,7 @@ async def resenias_por_restaurante(id: str):
             }}
         ]
         db = get_db()
-        await aggregate_verify_index_use(db.resenias, pipeline)
+        await aggregate_lookup_verify_index_use(db.resenias, pipeline)
         
         cursor = db.resenias.aggregate(pipeline)
         res = await cursor.to_list() 
