@@ -755,7 +755,42 @@ async def bulk_create(collection: str, docs: list[dict]):
     except Exception as e:
         print(f"Bulk update error: {e}")
         raise HTTPException(status_code=500, detail=f"Bulk update failed: {e}")
-    
+
+# ------------------------------
+# BULK UPDATE
+# ------------------------------
+@app.post("/bulk-update/{collection}")
+async def bulk_update(
+    collection: str,
+    operaciones: List[dict] = Body(...)
+):
+    if collection not in ["restaurantes", "ordenes", "articulos", "usuarios", "resenias"]:
+        raise HTTPException(status_code=422, detail=f"Colección '{collection}' no permitida")
+
+    if not operaciones:
+        raise HTTPException(status_code=422, detail="No se proporcionaron operaciones de actualización")
+
+    try:
+        db = get_db()
+
+        updates = []
+        for op in operaciones:
+            if "_id" not in op or "data" not in op:
+                raise HTTPException(status_code=400, detail="Cada operación debe contener '_id' y 'data'")
+            updates.append(
+                UpdateOne(
+                    {"_id": ObjectId(op["_id"])},
+                    {"$set": op["data"]}
+                )
+            )
+
+        result = await db[collection].bulk_write(updates)
+        return {
+            "matched": result.matched_count,
+            "modified": result.modified_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en bulk update: {str(e)}")
 # ------------------------------
 # BULK DELETE
 # ------------------------------
