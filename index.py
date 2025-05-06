@@ -115,15 +115,28 @@ async def aggregate_verify_index_use(collection, pipeline):
     total_keys_examined = execution_stats.get("totalKeysExamined", 0)
     total_docs_examined = execution_stats.get("totalDocsExamined", 0)
 
-    # Basic check: are we using indexes at all?
+    # Check index usage before $lookup
+    input_stage = winning_plan.get("inputStage", {})
+    if input_stage.get("stage") == "COLLSCAN" and total_keys_examined == 0:
+        raise HTTPException(status_code=400, detail="Input collection scan (COLLSCAN) - No indexes used")
+
+    # Check if indexes were used in the winning plan
     if not contains_ixscan(winning_plan) and total_keys_examined == 0:
         raise HTTPException(status_code=400, detail=f"No indexes used in this query\n {execution_stats}")
 
-    # Optional: Add a ratio check for efficiency
+    if "stage" in winning_plan and winning_plan["stage"] == "LOOKUP":
+        # Look for potential index usage in the lookup stage
+        lookup_stage = winning_plan.get("inputStage", {}).get("inputStage", {})
+        if lookup_stage and lookup_stage.get("stage") == "COLLSCAN":
+            raise HTTPException(status_code=400, detail=f"COLLSCAN detected in $lookup stage - No indexes used for join {explanation}")
+
+    # Optional: Add a ratio check for efficiency (e.g., totalDocsExamined / totalKeysExamined)
     if total_keys_examined > 0 and total_docs_examined > 0:
         ratio = total_docs_examined / total_keys_examined
         if ratio > 10:  # You can tweak this threshold
-            raise HTTPException(status_code=400, detail="High doc/key examined ratio, bad index use")
+            raise HTTPException(status_code=400, detail=f"High doc/key examined ratio, bad index use {explanation}")
+
+    # Everything looks good, no issues
 
 ## For normal
 def uses_index(winning_plan):
@@ -541,17 +554,18 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
         pipeline = []
         # 1. Filtros simples
         if body.simple_filter:
-            simple_filter = []
+            simple_filter = {}
             for key, value in body.simple_filter.items():
-                simple_filter.append({
-                    "$eq": [ f"${key}",f"{value}" ]
-                })
-            pipeline.append(
-            {"$match": {
-                "$expr": {
-                    "$and": simple_filter
-                }
-            }})
+                simple_filter[key] = value
+            pipeline.append({"$match": simple_filter})
+            
+        if body.simple_sort:
+            simple_sort = {}
+            for key, value in body.simple_sort.items():
+                simple_sort[key] = value
+            pipeline.append({
+                "$sort": simple_sort
+            })
         # 2. Categorias
         if body.categories:
             pipeline.append(
@@ -565,14 +579,6 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
                 }
             }}
             )
-        # 3. Sort
-        if body.simple_sort:
-            simple_sort = {}
-            for key, value in body.simple_sort.items():
-                simple_sort[key] = value
-            pipeline.append({
-                "$sort": simple_sort
-            })
         # 4. Skip
         if body.skip:
             pipeline.append({"$skip": body.skip})
