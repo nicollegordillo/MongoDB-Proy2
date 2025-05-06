@@ -74,8 +74,10 @@ async def aggregate_verify_index_use(collection, pipeline):
     pymongo_collection = collection.delegate
     
     from asyncio import to_thread
-    explanation = await to_thread(pymongo_collection.aggregate(pipeline).explain)
-
+    explanation = await to_thread(
+        pymongo_collection.database.command,
+        {"explain": {"aggregate": collection.name, "pipeline": pipeline, "cursor": {}}}
+    )
     def contains_ixscan(plan):
         """Recursively check for IXSCAN stage (index use)."""
         if isinstance(plan, dict):
