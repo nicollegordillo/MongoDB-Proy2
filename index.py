@@ -779,7 +779,7 @@ async def top_platos():
                 },
                 "pipeline": [
                     {"$match": {
-                        "$_id": "$$articulo_id"
+                        "$expr": { "$eq": ["$_id", "$$articulo_id"] }
                     }}
                 ],
                 "as": "articulo"
@@ -842,7 +842,7 @@ async def resenias_por_restaurante(id: str):
                 },
                 "pipeline": [
                     {"$match": {
-                        "$_id", "$$usuario_id"
+                        "$expr": { "$eq": ["$_id", "$$usuario_id"] }
                     }},
                     {"$project": {
                         "nombre": "$nombre",
@@ -858,7 +858,7 @@ async def resenias_por_restaurante(id: str):
                 },
                 "pipeline": [
                     {"$match": {
-                        "$_id", "$$orden_id"
+                        "$expr": { "$eq": ["$_id", "$$orden_id"] }
                     }},
                     {"$project": {
                         "estado": "$estado",
