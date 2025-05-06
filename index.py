@@ -471,7 +471,12 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
             pipeline.append({"$skip": body.skip})
         if body.limit:
             pipeline.append({"$limit": body.limit})
-    
+            
+        # 5 Project:
+        if body.project:
+            pipeline.append({
+                "$project": body.project
+            })
         cursor = db.restaurantes.aggregate(pipeline)
         result = await cursor.to_list()
         parsed = convert_object_ids(result)
@@ -527,6 +532,68 @@ def convert_object_ids(obj):
     else:
         return obj
 
+
+# Simple aggregations
+@app.post("agg/simple/")
+async def simple_agg(
+    collection: str,
+    groupBy: str,
+    grouping: dict,
+    limit: int,
+    skip: int
+):
+    # --- Error handling
+    # Collection
+    if not collection:
+        raise HTTPException(status_code=500, detail="Missing collection, required field")
+    if collection not in ["restaurantes","ordenes","resenias","articulos","usuarios"]:
+        raise HTTPException(status_code=500, detail=f"Collection '{collection}' doesnt exist in cluster")
+    
+    # Grouping Factor
+    if not groupBy:
+        raise HTTPException(status_code=500, detail="Missing operations")
+
+    # operations
+    if not grouping:
+        raise HTTPException(status_code=500, detail="Grouping is a required field")
+    for key, value in grouping:
+        if not isinstance(key, str):
+            raise HTTPException(status_code=500, detail=f"In grouping, key must be a string, recieved {key}")
+        if not isinstance(value, str) and value in ["sum","count","avg"]:
+            raise HTTPException(status_code=500, detail=f"Invalid aggregate operations, recieved {value} but expected 'sum', 'avg' or 'count'")
+    try:
+        pipeline = []
+        # Grouping/Operation
+        grouping_query = {}
+        for key, value in grouping:
+            grouping_query[str(key + "_"+value)] = {f"${value}": key}
+        pipeline.append({
+            "$group": {
+                "_id": groupBy,
+                "rslt": {
+                    grouping_query
+                }
+            }
+        })
+
+        # Skip
+        pipeline.append({"$skip": skip})
+        pipeline.append({"$limit": limit})
+            
+        # Execution
+        db = get_db()
+        cursor = db[collection].aggregate(pipeline)
+        res = await cursor.to_list() 
+        parsed = convert_object_ids(res)
+        return parsed
+    except Exception as e:
+        print(f"Error realizando agegacion: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    
+
+
+# Top Restaurants
 @app.post("/agg/top-res/")
 async def top_restaurantes():
     try:
