@@ -747,13 +747,14 @@ async def bulk_create(collection: str, docs: list[dict]):
     operations = [InsertOne(doc) for doc in docs]
     # Executing operations:
     try:
+        db = get_db()
         result = await db[collection].bulk_write(operations)
         return {
             "inserted_count": result.inserted_count
         }
     except Exception as e:
         print(f"Bulk update error: {e}")
-        raise HTTPException(status_code=500, detail="Bulk update failed")
+        raise HTTPException(status_code=500, detail=f"Bulk update failed: {e}")
     
 # ------------------------------
 # CRUD USUARIOS
