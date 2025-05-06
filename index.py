@@ -117,7 +117,7 @@ async def aggregate_verify_index_use(collection, pipeline):
 
     # Basic check: are we using indexes at all?
     if not contains_ixscan(winning_plan) and total_keys_examined == 0:
-        raise HTTPException(status_code=400, detail="No indexes used in this query")
+        raise HTTPException(status_code=400, detail=f"No indexes used in this query\n {execution_stats}")
 
     # Optional: Add a ratio check for efficiency
     if total_keys_examined > 0 and total_docs_examined > 0:
@@ -158,7 +158,7 @@ async def ensure_query_uses_index(collection, filter_query: dict):
 
     # Basic check: are we using indexes at all?
     if not uses_index(winning_plan) and total_keys_examined == 0:
-        raise HTTPException(status_code=400, detail="No indexes used in this query")
+        raise HTTPException(status_code=400, detail=f"No indexes used in this query\n {execution_stats}")
 
     # Optional: Add a ratio check for efficiency
     if total_keys_examined > 0 and total_docs_examined > 0:
@@ -627,7 +627,7 @@ async def actualizar_restaurante(id: str, data: dict):
         
         await ensure_query_uses_index(db.restaurantes, filter_query)
 
-        res = await db.restaurantes.update_one(filter_query)
+        res = await db.restaurantes.update_one(filter_query, {"$set": data})
         if res.matched_count == 0:
             raise HTTPException(status_code=404, detail="Restaurante no encontrado")
     except Exception as e:
