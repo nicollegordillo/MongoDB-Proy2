@@ -70,23 +70,27 @@ def get_db():
 # INDEX VERIFICATION
 # ------------------------------
 
-async def ensure_index_usage(cursor):
-    explanation = await cursor.explain()
-    winning_plan = explanation.get("queryPlanner", {}).get("winningPlan", {})
+async def aggregate_verify_index_use(collection, pipeline):
+    pymongo_collection = collection.database.get_collection(collection.name)
+    raw_cursor = pymongo_collection.aggregate(pipeline)
+    explanation = await raw_cursor.explain()
+
     def contains_ixscan(plan):
-        """Recursively check if any stage uses an index."""
-        stage = plan.get("stage")
-        if stage == "IXSCAN":
-            return True
-        if "inputStage" in plan:
-            return contains_ixscan(plan["inputStage"])
-        if "inputStages" in plan:
-            return any(contains_ixscan(p) for p in plan["inputStages"])
-        if "shards" in plan:  # in case of sharded clusters
-            return any(contains_ixscan(s["winningPlan"]) for s in plan["shards"].values())
+        """Recursively check for IXSCAN stage (index use)."""
+        if isinstance(plan, dict):
+            stage = plan.get("stage")
+            if stage == "IXSCAN":
+                return True
+            for key, value in plan.items():
+                if isinstance(value, (dict, list)) and contains_ixscan(value):
+                    return True
+        elif isinstance(plan, list):
+            return any(contains_ixscan(p) for p in plan)
         return False
+
+    winning_plan = explanation.get("queryPlanner", {}).get("winningPlan", {})
     if not contains_ixscan(winning_plan):
-        raise HTTPException(status_code=400, detail="Query does not implement index use")
+        raise HTTPException(status_code=400, detail="Aggregation pipeline does not implement index use")
 # ------------------------------
 # CRUD ÓRDENES
 # ------------------------------
@@ -590,8 +594,9 @@ async def simple_agg(
             
         # Execution
         db = get_db()
+        await aggregate_verify_index_use(db[body.collection], pipeline)
+        
         cursor = db[body.collection].aggregate(pipeline)
-        await ensure_index_usage(cursor)
         res = await cursor.to_list() 
         parsed = convert_object_ids(res)
         return parsed
@@ -606,11 +611,15 @@ async def simple_agg(
 @app.post("/agg/top-res/")
 async def top_restaurantes():
     try:
-        db = get_db()
-        cursor = db.restaurantes.aggregate([
+        pipeline = [
             {"$sort": {"calificacionPromedio": -1}},
             {"$limit": 10}
-        ])
+        ]
+        db = get_db()
+        
+        await aggregate_verify_index_use(db.restaurantes, pipeline)
+        
+        cursor = db.restaurantes.aggregate(pipeline)
         res = await cursor.to_list() 
         parsed = convert_object_ids(res)
         return parsed
@@ -622,9 +631,8 @@ async def top_restaurantes():
 @app.post("/agg/top-dish/")
 async def top_platos():
     try:
-        db = get_db()
-        cursor = db.ordenes.aggregate([
-            {"$unwind": "$items"},
+        pipeline = [
+                        {"$unwind": "$items"},
             {"$group": {
                 "_id": "$items.articulo_id",
                 "total_sales": {"$sum": "$items.cantidad"}
@@ -655,8 +663,11 @@ async def top_platos():
                 "total_sales": 1,
                 "articulo": 1
             }}
-        ])
-        await ensure_index_usage(cursor)
+        ]
+        db = get_db()
+        await aggregate_verify_index_use(db.ordenes, pipeline)
+        
+        cursor = db.ordenes.aggregate(pipeline)
         res = await cursor.to_list() 
         parsed = convert_object_ids(res)
         return parsed
@@ -669,14 +680,16 @@ async def top_platos():
 @app.post("/agg/user-spent/")
 async def gastos_usuario():
     try:
-        db = get_db()
-        cursor = db.ordenes.aggregate([
+        pipeline = [
             {"$group": {
                 "_id": "$usuario_id",
                 "spent": {"$sum": "$total"}
             }}
-        ])
-        await ensure_index_usage(cursor)
+        ]
+        db = get_db()
+        await aggregate_verify_index_use(db.ordenes, pipeline)
+        
+        cursor = db.ordenes.aggregate(pipeline)
         res = await cursor.to_list() 
         parsed = convert_object_ids(res)
         return parsed
@@ -689,9 +702,8 @@ async def gastos_usuario():
 @app.post("/agg/resenias/{id}")
 async def resenias_por_restaurante(id: str):
     try:
-        db = get_db()
-        cursor = db.resenias.aggregate([
-            {"$match": { 
+        pipeline = [
+                        {"$match": { 
                 "restaurante_id": ObjectId(id) 
             }},
             {"$lookup": {
@@ -738,8 +750,11 @@ async def resenias_por_restaurante(id: str):
                 "calificacion": "&calificacion",
                 "fecha": "$fecha"
             }}
-        ])
-        await ensure_index_usage(cursor)
+        ]
+        db = get_db()
+        await aggregate_verify_index_use(db.resenias, pipeline)
+        
+        cursor = db.resenias.aggregate(pipeline)
         res = await cursor.to_list() 
         parsed = convert_object_ids(res)
         return parsed
