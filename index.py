@@ -82,12 +82,20 @@ def get_db():
 ## For aggregates
 async def aggregate_verify_index_use(collection, pipeline):
     pymongo_collection = collection.delegate
-    
-    
+
+    # Run explain with executionStats to get detailed info
     explanation = await to_thread(
         pymongo_collection.database.command,
-        {"explain": {"aggregate": collection.name, "pipeline": pipeline, "cursor": {}}}
+        {
+            "explain": {
+                "aggregate": collection.name,
+                "pipeline": pipeline,
+                "cursor": {}
+            },
+            "verbosity": "executionStats"  # required for detailed metrics
+        }
     )
+    
     def contains_ixscan(plan):
         """Recursively check for IXSCAN stage (index use)."""
         if isinstance(plan, dict):
@@ -100,17 +108,28 @@ async def aggregate_verify_index_use(collection, pipeline):
             return any(contains_ixscan(p) for p in plan)
         return False
 
-    winning_plan = explanation.get("queryPlanner", {}).get("winningPlan", {})
-    if not contains_ixscan(winning_plan):
-        raise HTTPException(status_code=400, detail="Aggregation pipeline does not implement index use")
+    query_planner = explanation.get("queryPlanner", {})
+    winning_plan = query_planner.get("winningPlan", {})
+
+    execution_stats = explanation.get("executionStats", {})
+    total_keys_examined = execution_stats.get("totalKeysExamined", 0)
+    total_docs_examined = execution_stats.get("totalDocsExamined", 0)
+
+    # Basic check: are we using indexes at all?
+    if not contains_ixscan(winning_plan) and total_keys_examined == 0:
+        raise HTTPException(status_code=400, detail="No indexes used in this query")
+
+    # Optional: Add a ratio check for efficiency
+    if total_keys_examined > 0 and total_docs_examined > 0:
+        ratio = total_docs_examined / total_keys_examined
+        if ratio > 10:  # You can tweak this threshold
+            raise HTTPException(status_code=400, detail="High doc/key examined ratio, bad index use")
 
 ## For normal
 def uses_index(winning_plan):
     def search(plan):
         if isinstance(plan, dict):
             stage = plan.get("stage")
-            if stage == "COLLSCAN":
-                return False
             if stage in ("IXSCAN", "EXPRESS_IXSCAN"):
                 return True
             for value in plan.values():
@@ -131,7 +150,22 @@ async def ensure_query_uses_index(collection, filter_query: dict):
     pymongo_collection = collection.delegate
     explanation = await to_thread(pymongo_collection.find(filter_query).explain)
     winning_plan = explanation.get("queryPlanner", {}).get("winningPlan", {})
-    return uses_index(winning_plan)
+    
+    
+    execution_stats = explanation.get("executionStats", {})
+    total_keys_examined = execution_stats.get("totalKeysExamined", 0)
+    total_docs_examined = execution_stats.get("totalDocsExamined", 0)
+
+    # Basic check: are we using indexes at all?
+    if not uses_index(winning_plan) and total_keys_examined == 0:
+        raise HTTPException(status_code=400, detail="No indexes used in this query")
+
+    # Optional: Add a ratio check for efficiency
+    if total_keys_examined > 0 and total_docs_examined > 0:
+        ratio = total_docs_examined / total_keys_examined
+        if ratio > 10:  # You can tweak this threshold
+            raise HTTPException(status_code=400, detail="High doc/key examined ratio, bad index use")
+
 
 # ------------------------------
 # CRUD ÓRDENES
@@ -472,10 +506,8 @@ async def obtener_imagen(id: str):
 async def listar_restaurantes():
     try:
         db = get_db()
-        uses_index = await ensure_query_uses_index(db.restaurantes, {})
-        if not uses_index:
-            raise HTTPException(status_code=400, detail="Index use is required for all queries")
-        
+        await ensure_query_uses_index(db.restaurantes, {})
+
         restaurantes = await db.restaurantes.find().to_list(100)
         for r in restaurantes:
             r["_id"] = str(r["_id"])
@@ -490,10 +522,8 @@ async def obtener_restaurante(id: str):
         db = get_db()
         filter_query = {"_id": ObjectId(id)}
         
-        uses_index = await ensure_query_uses_index(db.restaurantes, filter_query)
-        if not uses_index:
-            raise HTTPException(status_code=400, detail="Index use is required for all queries")
-        
+        await ensure_query_uses_index(db.restaurantes, filter_query)
+ 
         r = await db.restaurantes.find_one(filter_query)
         if not r:
             raise HTTPException(status_code=404, detail="Restaurante no encontrada")
@@ -507,7 +537,7 @@ async def obtener_restaurante(id: str):
 @app.post("/restaurantes/list")
 async def options_restaurante(body: RestauranteOptions = Body(...)):
     try: 
-        db = get_db()
+        
         pipeline = []
         # 1. Filtros simples
         if body.simple_filter:
@@ -554,6 +584,9 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
             pipeline.append({
                 "$project": body.project
             })
+        db = get_db()
+        await aggregate_verify_index_use(db.restaurantes, pipeline)
+        
         cursor = db.restaurantes.aggregate(pipeline)
         result = await cursor.to_list()
         parsed = convert_object_ids(result)
@@ -578,10 +611,8 @@ async def eliminar_restaurante(id: str):
         db = get_db()
         filter_query = {"_id": ObjectId(id)}
         
-        uses_index = await ensure_query_uses_index(db.restaurantes, filter_query)
-        if not uses_index:
-            raise HTTPException(status_code=400, detail="Index use is required for all queries")
-        
+        await ensure_query_uses_index(db.restaurantes, filter_query)
+
         r = await db.restaurantes.delete_one(filter_query)
         return {"eliminados": r.deleted_count}
     except Exception as e:
@@ -594,10 +625,8 @@ async def actualizar_restaurante(id: str, data: dict):
         db = get_db()
         filter_query = {"_id": ObjectId(id)}
         
-        uses_index = await ensure_query_uses_index(db.restaurantes, filter_query)
-        if not uses_index:
-            raise HTTPException(status_code=400, detail="Index use is required for all queries")
-        
+        await ensure_query_uses_index(db.restaurantes, filter_query)
+
         res = await db.restaurantes.update_one(filter_query)
         if res.matched_count == 0:
             raise HTTPException(status_code=404, detail="Restaurante no encontrado")
