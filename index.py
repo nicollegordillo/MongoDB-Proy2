@@ -691,41 +691,27 @@ def convert_object_ids(obj):
 async def simple_agg(
     body: SimpleAggregate = Body(...)
     ):
-    # --- Error handling
-    # Collection
-    if body.collection not in ["restaurantes","ordenes","resenias","articulos","usuarios"]:
-        raise HTTPException(status_code=400, detail=f"Collection '{body.collection}' doesnt exist in cluster")
-    
-    # operations
-    for key, value in body.grouping.items():
-        if not isinstance(key, str):
-            raise HTTPException(status_code=400, detail=f"In grouping, key must be a string, recieved {key}")
-        if not isinstance(value, str) and value in ["sum","count","avg"]:
-            raise HTTPException(status_code=400, detail=f"Invalid aggregate operations, recieved {value} but expected 'sum', 'avg' or 'count'")
+
     try:
-        pipeline = []
-        # Grouping/Operation
-        grouping_query = {}
-        for key, value in body.grouping.items():
-            grouping_query[str(key + "_"+value)] = {f"${value}": f"${key}"}
-        pipeline.append({
-            "$group": {
-                "_id": f"${body.groupBy}",
-                **grouping_query
-            }
-        })
-        # Skip
-        if body.skip:
-            pipeline.append({"$skip": body.skip})
-        if body.limit:
-            pipeline.append({"$limit": body.limit})
-            
-        # Execution
-        db = get_db()
-        await aggregate_verify_index_use(db[body.collection], pipeline)
+
+        if body.collection not in ["restaurantes","ordenes","resenias","articulos","usuarios"]:
+            raise HTTPException(status_code=400, detail="Collection non existent")
         
-        cursor = db[body.collection].aggregate(pipeline)
-        res = await cursor.to_list() 
+        collection = db[body.collection]
+
+        if body.do_count:
+            count = await collection.count_documents(body.simple_filter)
+            return {"count": count}
+
+        if body.do_distinct:
+            if not body.distinct_field:
+                raise HTTPException(status_code=400, detail="`distinct_field` must be provided when `do_distinct` is True.")
+            values = await collection.distinct(body.distinct_field, body.simple_filter)
+            return {"distinct_values": values}
+
+        # Default: regular find
+        cursor = collection.find(body.simple_filter)
+        res = await cursor.to_list()
         parsed = convert_object_ids(res)
         return parsed
     except Exception as e:
