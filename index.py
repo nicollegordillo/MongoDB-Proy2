@@ -691,9 +691,8 @@ def convert_object_ids(obj):
 async def simple_agg(
     body: SimpleAggregate = Body(...)
     ):
-
     try:
-
+        db = get_db()
         if body.collection not in ["restaurantes","ordenes","resenias","articulos","usuarios"]:
             raise HTTPException(status_code=400, detail="Collection non existent")
         
