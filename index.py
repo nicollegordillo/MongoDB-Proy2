@@ -623,7 +623,8 @@ async def options_restaurante(body: RestauranteOptions = Body(...)):
                 "$project": body.project
             })
         db = get_db()
-        await aggregate_verify_index_use(db.restaurantes, pipeline)
+        if not body.project:
+            await aggregate_verify_index_use(db.restaurantes, pipeline)
         
         cursor = db.restaurantes.aggregate(pipeline)
         result = await cursor.to_list()
