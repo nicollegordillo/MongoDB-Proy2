@@ -362,15 +362,14 @@ async def actualizar_orden(id: str, orden_actualizada: dict = Body(...)):
         print(f"Error al actualizar orden: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/ordenes/")
-async def eliminar_ordenes(ids: List[str] = Body(...)):
+@app.delete("/ordenes/{id}")
+async def eliminar_orden(id: str):
     try:
         db = get_db()
-        object_ids = [ObjectId(i) for i in ids]
-        res = await db.ordenes.delete_many({"_id": {"$in": object_ids}})
-        return {"eliminados": res.deleted_count}
+        res = await db.ordenes.delete_one({"_id": ObjectId(id)})
+        return {"eliminado": res.deleted_count}
     except Exception as e:
-        print(f"Error al eliminar órdenes: {e}")
+        print(f"Error al eliminar la orden: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ------------------------------
@@ -503,17 +502,15 @@ async def actualizar_resenia(id: str, data: dict):
         print(f"Error al actualizar reseña: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/resenias/")
-async def eliminar_resenias(ids: List[str] = Body(...)):
+@app.delete("/resenias/{id}")
+async def eliminar_resenia(id: str):
     try:
         db = get_db()
-        object_ids = [ObjectId(i) for i in ids]
-        res = await db.resenias.delete_many({"_id": {"$in": object_ids}})
-        return {"eliminados": res.deleted_count}
+        res = await db.resenias.delete_one({"_id": ObjectId(id)})
+        return {"eliminado": res.deleted_count}
     except Exception as e:
-        print(f"Error al eliminar reseñas: {e}")
+        print(f"Error al eliminar la reseña: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ------------------------------
 # IMÁGENES CON GRIDFS
